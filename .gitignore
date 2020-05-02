@@ -1,4 +1,13 @@
-# Project exclude paths
+# Gradle files
 /.gradle/
 /build/
-/build/classes/java/main/
+
+# IntelliJ IDEA project files
+/.idea
+
+# Crash logs
+/hs_err_pid*.log
+
+# Runtime files
+/config.json
+/video.mp4

@@ -1,5 +1,3 @@
-import org.gradle.internal.os.OperatingSystem
-
 buildscript {
     repositories {
         jcenter()
@@ -25,11 +23,9 @@ sourceCompatibility = 1.8
 project.ext.lwjglVersion = "3.2.4-SNAPSHOT"
 project.ext.lwjglNatives = "natives-windows"
 
-
 repositories {
     mavenCentral()
     maven { url "https://oss.sonatype.org/content/repositories/snapshots/" }
-    maven { url 'https://jitpack.io' }
 }
 
 dependencies {
