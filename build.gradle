@@ -1,0 +1,71 @@
+import org.gradle.internal.os.OperatingSystem
+
+buildscript {
+    repositories {
+        jcenter()
+    }
+    dependencies {
+        classpath 'com.github.jengelman.gradle.plugins:shadow:2.0.1'
+    }
+}
+
+plugins {
+    id 'java'
+    id 'application'
+    id 'com.github.johnrengelman.shadow' version '5.2.0'
+    id 'de.fuerstenau.buildconfig' version '1.1.8'
+    id 'idea'
+}
+
+group 'de.jcm'
+version '1.0'
+
+sourceCompatibility = 1.8
+
+project.ext.lwjglVersion = "3.2.4-SNAPSHOT"
+project.ext.lwjglNatives = "natives-windows"
+
+
+repositories {
+    mavenCentral()
+    maven { url "https://oss.sonatype.org/content/repositories/snapshots/" }
+    maven { url 'https://jitpack.io' }
+}
+
+dependencies {
+    implementation platform("org.lwjgl:lwjgl-bom:$lwjglVersion")
+
+    implementation "org.lwjgl:lwjgl"
+    implementation "org.lwjgl:lwjgl-assimp"
+    implementation "org.lwjgl:lwjgl-glfw"
+    implementation "org.lwjgl:lwjgl-openal"
+    implementation "org.lwjgl:lwjgl-opengl"
+    implementation "org.lwjgl:lwjgl-stb"
+    runtimeOnly "org.lwjgl:lwjgl::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-assimp::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-glfw::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-openal::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-opengl::$lwjglNatives"
+    runtimeOnly "org.lwjgl:lwjgl-stb::$lwjglNatives"
+
+    implementation 'net.java.dev.jna:jna:5.5.0'
+    implementation 'net.java.dev.jna:jna-platform:5.5.0'
+
+    implementation 'org.json:json:20190722'
+
+    implementation group: 'commons-io', name: 'commons-io', version: '2.6'
+    implementation group: 'org.joml', name: 'joml', version: '1.9.17'
+
+    implementation 'org.bytedeco:javacv:1.5.3'
+    // only include natives for the platforms we want to use (Windows, 32 and 64 bit)
+    implementation group: 'org.bytedeco', name: 'ffmpeg', version: '4.2.2-1.5.3', classifier: 'windows-x86'
+    implementation group: 'org.bytedeco', name: 'ffmpeg', version: '4.2.2-1.5.3', classifier: 'windows-x86_64'
+    implementation group: 'org.bytedeco', name: 'javacpp', version: '1.5.3', classifier: 'windows-x86'
+    implementation group: 'org.bytedeco', name: 'javacpp', version: '1.5.3', classifier: 'windows-x86_64'
+}
+
+buildConfig {
+    packageName = 'de.jcm.dynamicwallpaper'
+}
+
+mainClassName = 'de.jcm.dynamicwallpaper.DynamicWallpaper'
