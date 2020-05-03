@@ -107,7 +107,7 @@ public class ControlFrame extends JFrame
 
 					endTime = new JSpinner(
 							new SpinnerNumberModel(wallpaper.endTimestamp/1000000.0,
-							                       0.0, 10000.0, 1.0));
+							                       -1.0, 10000.0, 1.0));
 					moreOptions.add(endTime);
 
 					JLabel endTimeUnitLabel = new JLabel(" s");
@@ -262,7 +262,7 @@ public class ControlFrame extends JFrame
 
 		wallpaper.startTimestamp = (long) ((double)startTime.getValue()*1000000);
 		wallpaper.endTimestamp = (long) ((double)endTime.getValue()*1000000);
-		if(wallpaper.endTimestamp == 0)
+		if(wallpaper.endTimestamp <= 0)
 			wallpaper.endTimestamp = -1;
 
 		wallpaper.colorMode = colorMode;
