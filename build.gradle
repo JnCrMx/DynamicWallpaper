@@ -20,12 +20,11 @@ version '1.0'
 
 sourceCompatibility = 1.8
 
-project.ext.lwjglVersion = "3.2.4-SNAPSHOT"
+project.ext.lwjglVersion = "3.2.3"
 project.ext.lwjglNatives = "natives-windows"
 
 repositories {
     mavenCentral()
-    maven { url "https://oss.sonatype.org/content/repositories/snapshots/" }
 }
 
 dependencies {
