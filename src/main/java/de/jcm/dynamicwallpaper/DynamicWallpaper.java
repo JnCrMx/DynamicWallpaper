@@ -11,8 +11,10 @@ import org.bytedeco.ffmpeg.global.avutil;
 import org.bytedeco.javacv.FFmpegFrameGrabber;
 import org.bytedeco.javacv.Frame;
 import org.json.JSONObject;
+import org.lwjgl.BufferUtils;
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.glfw.GLFWVidMode;
+import org.lwjgl.openal.*;
 import org.lwjgl.opengl.GL;
 import org.lwjgl.system.MemoryStack;
 
@@ -26,6 +28,7 @@ import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
+import java.nio.ShortBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.concurrent.Executors;
@@ -36,6 +39,8 @@ import java.util.regex.Pattern;
 
 import static org.lwjgl.glfw.Callbacks.glfwFreeCallbacks;
 import static org.lwjgl.glfw.GLFW.*;
+import static org.lwjgl.openal.AL10.*;
+import static org.lwjgl.openal.ALC10.*;
 import static org.lwjgl.opengl.GL11.*;
 import static org.lwjgl.opengl.GL12.GL_BGR;
 import static org.lwjgl.opengl.GL20.GL_FRAGMENT_SHADER;
@@ -48,10 +53,15 @@ public class DynamicWallpaper
 
 	// The window handle
 	private long window;
+
 	public long getWindow()
 	{
 		return window;
 	}
+
+	private long alDevice;
+	private long alContext;
+	private int audioSource;
 
 	private ShaderProgram program;
 	private Mesh cube;
@@ -234,6 +244,9 @@ public class DynamicWallpaper
 		glfwFreeCallbacks(window);
 		glfwDestroyWindow(window);
 
+		alcDestroyContext(alContext);
+		alcCloseDevice(alDevice);
+
 		Utils.destroyWallpaper(window);
 
 		// Terminate GLFW and free the error callback
@@ -292,6 +305,22 @@ public class DynamicWallpaper
 		glfwMakeContextCurrent(window);
 		// Enable v-sync
 		glfwSwapInterval(1);
+
+		String defaultDeviceName = alcGetString(0, ALC_DEFAULT_DEVICE_SPECIFIER);
+		alDevice = alcOpenDevice(defaultDeviceName);
+		IntBuffer contextAttribList = BufferUtils.createIntBuffer(16);
+
+		// Note the manner in which parameters are provided to OpenAL...
+		contextAttribList.put(ALC_REFRESH);
+		contextAttribList.put(60);
+
+		contextAttribList.put(ALC_SYNC);
+		contextAttribList.put(ALC_FALSE);
+
+		contextAttribList.put(0);
+		contextAttribList.flip();
+		alContext = alcCreateContext(alDevice, contextAttribList);
+		alcMakeContextCurrent(alContext);
 
 		// Make the window visible
 		glfwShowWindow(window);
@@ -391,6 +420,13 @@ public class DynamicWallpaper
 		{
 			e.printStackTrace();
 		}
+
+		alListener3f(AL_VELOCITY, 0f, 0f, 0f);
+		alListener3f(AL_ORIENTATION, 0f, 0f, -1f);
+
+		audioSource = alGenSources();
+		alSource3f(audioSource, AL_POSITION, 0f, 0f, 0f);
+		alSource3f(audioSource, AL_VELOCITY, 0f, 0f, 0f);
 	}
 
 	private void loop()
@@ -401,6 +437,9 @@ public class DynamicWallpaper
 		// creates the GLCapabilities instance and makes the OpenGL
 		// bindings available for use.
 		GL.createCapabilities();
+
+		ALCCapabilities alcCapabilities = ALC.createCapabilities(alDevice);
+		ALCapabilities alCapabilities = AL.createCapabilities(alcCapabilities);
 
 		glEnable(GL_TEXTURE_2D);
 
@@ -436,30 +475,45 @@ public class DynamicWallpaper
 	{
 		texture.bind();
 
-		try
+		Frame frame = null;
+		do
 		{
-			if(endTimestamp > 0 && frameGrabber.get().getTimestamp() >= endTimestamp)
+			try
 			{
-				frameGrabber.get().setTimestamp(startTimestamp);
-			}
+				if(endTimestamp > 0 && frameGrabber.get().getTimestamp() >= endTimestamp)
+				{
+					frameGrabber.get().setTimestamp(startTimestamp);
+				}
+				frame = frameGrabber.get().grabFrame();
 
-			Frame frame = frameGrabber.get().grabImage();
-			if(frame == null)
-			{
-				frameGrabber.get().setTimestamp(startTimestamp);
-
-				frame = frameGrabber.get().grabImage();
 				if(frame == null)
-					return;
+				{
+					frameGrabber.get().setTimestamp(startTimestamp);
+					continue;
+				}
+
+				if(frame.getTypes().contains(Frame.Type.VIDEO))
+				{
+					ByteBuffer buf = (ByteBuffer) frame.image[0];
+					texture.uploadData(GL_RGB8, frame.imageWidth, frame.imageHeight, GL_BGR, buf);
+				}
+				if(frame.getTypes().contains(Frame.Type.AUDIO))
+				{
+					int audioBuffer = alGenBuffers();
+					alBufferData(audioBuffer, AL_FORMAT_STEREO16, (ShortBuffer) frame.samples[0],
+					             frame.sampleRate);
+					alSourceQueueBuffers(audioSource, audioBuffer);
+
+					if(alGetSourcei(audioSource, AL_SOURCE_STATE)!=AL_PLAYING)
+						alSourcePlay(audioSource);
+				}
 			}
-			ByteBuffer buf = (ByteBuffer) frame.image[0];
-			texture.uploadData(GL_RGB8, frame.imageWidth, frame.imageHeight, GL_BGR, buf);
+			catch(Throwable t)
+			{
+				t.printStackTrace();
+			}
 		}
-		catch(Throwable t)
-		{
-			t.printStackTrace();
-			return;
-		}
+		while(frame == null || !frame.getTypes().contains(Frame.Type.VIDEO));
 
 		cube.bind();
 		program.use();
