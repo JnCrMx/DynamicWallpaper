@@ -10,6 +10,8 @@ import org.lwjgl.glfw.GLFWNativeWin32;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URL;
+import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -17,6 +19,14 @@ import static org.lwjgl.system.windows.User32.*;
 
 public class Utils
 {
+	public static InputStream openURLStream(URL url) throws IOException
+	{
+		URLConnection connection = url.openConnection();
+		// Some servers block Java 8's HTTP client.
+		connection.addRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:77.0) Gecko/20100101 Firefox/77.0");
+		return connection.getInputStream();
+	}
+
 	private static WinDef.HWND getWorkerW()
 	{
 		WinDef.HWND progman =  User32.INSTANCE.FindWindow("Progman", null);

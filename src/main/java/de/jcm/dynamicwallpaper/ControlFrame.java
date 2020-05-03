@@ -1,8 +1,6 @@
 package de.jcm.dynamicwallpaper;
 
 import de.jcm.dynamicwallpaper.colormode.*;
-import org.bytedeco.javacv.FFmpegFrameGrabber;
-import org.bytedeco.javacv.FrameGrabber;
 import org.json.JSONObject;
 import org.lwjgl.glfw.GLFW;
 
@@ -15,6 +13,7 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.util.Enumeration;
 
 public class ControlFrame extends JFrame
@@ -25,6 +24,8 @@ public class ControlFrame extends JFrame
 	private final JPanel colorModePanel;
 	private final ButtonGroup typeGroup;
 	private final JCheckBox relativePathCheckBox;
+	private final JSpinner startTime;
+	private final JSpinner endTime;
 
 	private ColorMode colorMode;
 	private ColorModeConfigurationPanel modeConfigurationPanel;
@@ -44,14 +45,14 @@ public class ControlFrame extends JFrame
 			filePanel.setLayout(new BorderLayout());
 			{
 				filePathField = new JTextField(25);
-				filePathField.setText(wallpaper.videoFile.getPath());
+				filePathField.setText(wallpaper.video);
 				filePanel.add(filePathField, BorderLayout.CENTER);
 
 				JButton browseButton = new JButton("Browse");
 				browseButton.setToolTipText("Open dialog to select file");
 				browseButton.addActionListener(e->{
 					JFileChooser chooser = new JFileChooser();
-					chooser.setCurrentDirectory(wallpaper.videoFile);
+					chooser.setSelectedFile(new File(wallpaper.video));
 					FileFilter mp4Filter = new FileFilter()
 					{
 						@Override
@@ -78,10 +79,41 @@ public class ControlFrame extends JFrame
 				});
 				filePanel.add(browseButton, BorderLayout.EAST);
 
-				relativePathCheckBox = new JCheckBox("relative path");
-				relativePathCheckBox.setToolTipText("Store as relative path in config");
-				relativePathCheckBox.setSelected(wallpaper.relative);
-				filePanel.add(relativePathCheckBox, BorderLayout.SOUTH);
+				JPanel moreOptions = new JPanel();
+				moreOptions.setLayout(new BoxLayout(moreOptions, BoxLayout.LINE_AXIS));
+				{
+					relativePathCheckBox = new JCheckBox("relative path");
+					relativePathCheckBox.setToolTipText("Store as relative path in config");
+					relativePathCheckBox.setSelected(wallpaper.relative);
+					moreOptions.add(relativePathCheckBox);
+
+					moreOptions.add(Box.createHorizontalGlue());
+
+					JLabel startTimeLabel = new JLabel("start time");
+					moreOptions.add(startTimeLabel);
+
+					startTime = new JSpinner(
+							new SpinnerNumberModel(wallpaper.startTimestamp/1000000.0,
+							                       0.0, 10000.0, 1.0));
+					moreOptions.add(startTime);
+
+					JLabel startTimeUnitLabel = new JLabel(" s");
+					moreOptions.add(startTimeUnitLabel);
+
+					moreOptions.add(Box.createHorizontalGlue());
+
+					JLabel endTimeLabel = new JLabel("end time");
+					moreOptions.add(endTimeLabel);
+
+					endTime = new JSpinner(
+							new SpinnerNumberModel(wallpaper.endTimestamp/1000000.0,
+							                       0.0, 10000.0, 1.0));
+					moreOptions.add(endTime);
+
+					JLabel endTimeUnitLabel = new JLabel(" s");
+					moreOptions.add(endTimeUnitLabel);
+				}
+				filePanel.add(moreOptions, BorderLayout.SOUTH);
 			}
 			contentPane.add(filePanel, BorderLayout.NORTH);
 
@@ -185,31 +217,53 @@ public class ControlFrame extends JFrame
 	{
 		if(!filePathField.getText().isEmpty())
 		{
-			File newFile = new File(filePathField.getText());
-			try
+			String video = filePathField.getText();
+			if(DynamicWallpaper.linkPattern.matcher(video).matches())
 			{
-				if(!Files.isSameFile(newFile.toPath(), wallpaper.videoFile.toPath()))
+				if(!video.equals(wallpaper.video))
 				{
-					wallpaper.videoFile = newFile;
-
+					wallpaper.video = video;
 					try
 					{
-						wallpaper.frameGrabber.get().close();
-						wallpaper.frameGrabber.set(new FFmpegFrameGrabber(wallpaper.videoFile));
-						wallpaper.frameGrabber.get().start();
+						wallpaper.startFrameGrabber();
 					}
-					catch(FrameGrabber.Exception e)
+					catch(IOException | InterruptedException e)
 					{
 						e.printStackTrace();
 					}
 				}
 			}
-			catch(IOException e)
+			else
 			{
-				e.printStackTrace();
+				File newFile = new File(video);
+				try
+				{
+					try
+					{
+						if(!Files.isSameFile(newFile.toPath(), new File(wallpaper.video).toPath()))
+						{
+							wallpaper.video = newFile.getPath();
+							wallpaper.startFrameGrabber();
+						}
+					}
+					catch(InvalidPathException ignored)
+					{
+						wallpaper.video = newFile.getPath();
+						wallpaper.startFrameGrabber();
+					}
+				}
+				catch(IOException | InterruptedException e)
+				{
+					e.printStackTrace();
+				}
 			}
 		}
 		wallpaper.relative = relativePathCheckBox.isSelected();
+
+		wallpaper.startTimestamp = (long) ((double)startTime.getValue()*1000000);
+		wallpaper.endTimestamp = (long) ((double)endTime.getValue()*1000000);
+		if(wallpaper.endTimestamp == 0)
+			wallpaper.endTimestamp = -1;
 
 		wallpaper.colorMode = colorMode;
 		modeConfigurationPanel.apply();

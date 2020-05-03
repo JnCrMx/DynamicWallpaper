@@ -1,7 +1,7 @@
 package de.jcm.dynamicwallpaper;
 
 import de.jcm.dynamicwallpaper.colormode.ColorMode;
-import de.jcm.dynamicwallpaper.colormode.HueWaveColorMode;
+import de.jcm.dynamicwallpaper.colormode.ConstantColorMode;
 import de.jcm.dynamicwallpaper.render.Mesh;
 import de.jcm.dynamicwallpaper.render.Shader;
 import de.jcm.dynamicwallpaper.render.ShaderProgram;
@@ -10,7 +10,6 @@ import org.apache.commons.io.IOUtils;
 import org.bytedeco.ffmpeg.global.avutil;
 import org.bytedeco.javacv.FFmpegFrameGrabber;
 import org.bytedeco.javacv.Frame;
-import org.bytedeco.javacv.FrameGrabber;
 import org.json.JSONObject;
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.glfw.GLFWVidMode;
@@ -23,14 +22,17 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.io.*;
 import java.lang.reflect.InvocationTargetException;
+import java.net.URL;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
 
 import static org.lwjgl.glfw.Callbacks.glfwFreeCallbacks;
 import static org.lwjgl.glfw.GLFW.*;
@@ -42,6 +44,8 @@ import static org.lwjgl.system.MemoryUtil.NULL;
 
 public class DynamicWallpaper
 {
+	public static final Pattern linkPattern = Pattern.compile("(http(s|)*://|www\\.)\\S*");
+
 	// The window handle
 	private long window;
 	public long getWindow()
@@ -57,10 +61,16 @@ public class DynamicWallpaper
 	private ControlFrame controlFrame;
 
 	ColorMode colorMode;
-	final AtomicReference<FFmpegFrameGrabber> frameGrabber = new AtomicReference<FFmpegFrameGrabber>();
+	final AtomicReference<FFmpegFrameGrabber> frameGrabber = new AtomicReference<>();
 
-	File videoFile;
+	String video;
+	// whether to store the video as a relative path (if possible)
 	boolean relative;
+
+	// timestamp (in microseconds) to seek to at beginning or video restart
+	long startTimestamp = 0;
+	// timestamp (in microseconds) to trigger video restart when reached, -1 to disable
+	long endTimestamp = -1;
 
 	private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
@@ -106,6 +116,16 @@ public class DynamicWallpaper
 			e.printStackTrace();
 		}
 
+		avutil.av_log_set_level(avutil.AV_LOG_ERROR);
+		try
+		{
+			startFrameGrabber();
+		}
+		catch(IOException | InterruptedException e)
+		{
+			e.printStackTrace();
+		}
+
 		init();
 		loop();
 		shutdown();
@@ -127,11 +147,22 @@ public class DynamicWallpaper
 				configObject = new JSONObject(line==null?"{}":line);
 			}
 
-			videoFile = new File(configObject.optString("video", "video.mp4"));
-			if(!videoFile.isAbsolute())
-				relative = true;
+			video = configObject.optString("video", "video.mp4");
+			if(!linkPattern.matcher(video).matches())
+			{
+				if(!new File(video).isAbsolute())
+				{
+					relative = true;
+				}
+			}
+			JSONObject videoConfig = configObject.optJSONObject("videoConfig");
+			if(videoConfig != null)
+			{
+				startTimestamp = videoConfig.optLong("startTimestamp", 0);
+				endTimestamp = videoConfig.optLong("endTimestamp", -1);
+			}
 
-			String colorMode = configObject.optString("mode", HueWaveColorMode.class.getName());
+			String colorMode = configObject.optString("mode", ConstantColorMode.class.getName());
 			try
 			{
 				this.colorMode = (ColorMode) Class.forName(colorMode).getConstructor().newInstance();
@@ -154,20 +185,32 @@ public class DynamicWallpaper
 	{
 		JSONObject object = new JSONObject();
 
-		Path p1 = videoFile.toPath().toAbsolutePath().normalize();
-		Path p2 = new File(".").toPath().toAbsolutePath().normalize();
-
-		Path videoPath;
-		if(p1.getRoot().equals(p2.getRoot()) && relative)
+		if(linkPattern.matcher(video).matches())
 		{
-			videoPath = p2.relativize(p1);
+			object.put("video", video);
 		}
 		else
 		{
-			videoPath = p1;
+			Path p1 = new File(video).toPath().toAbsolutePath().normalize();
+			Path p2 = new File(".").toPath().toAbsolutePath().normalize();
+
+			Path videoPath;
+			if(p1.getRoot().equals(p2.getRoot()) && relative)
+			{
+				videoPath = p2.relativize(p1);
+			}
+			else
+			{
+				videoPath = p1;
+			}
+			object.put("video", videoPath.toString());
 		}
 
-		object.put("video", videoPath.toString());
+		JSONObject videoConfig = new JSONObject();
+		videoConfig.put("startTimestamp", startTimestamp);
+		videoConfig.put("endTimestamp", endTimestamp);
+		object.put("videoConfig", videoConfig);
+
 		object.put("mode", colorMode.getClass().getName());
 
 		JSONObject modeConfig = new JSONObject();
@@ -245,20 +288,6 @@ public class DynamicWallpaper
 				glfwSetWindowShouldClose(window, true); // We will detect this in the rendering loop
 		});
 
-		avutil.av_log_set_level(avutil.AV_LOG_ERROR);
-		frameGrabber.set(new FFmpegFrameGrabber(videoFile));
-		frameGrabber.get().setImageWidth(mode.width());
-		frameGrabber.get().setImageHeight(mode.height());
-
-		try
-		{
-			frameGrabber.get().start();
-		}
-		catch(FrameGrabber.Exception e)
-		{
-			e.printStackTrace();
-		}
-
 		// Make the OpenGL context current
 		glfwMakeContextCurrent(window);
 		// Enable v-sync
@@ -266,6 +295,53 @@ public class DynamicWallpaper
 
 		// Make the window visible
 		glfwShowWindow(window);
+	}
+
+	public void startFrameGrabber() throws IOException, InterruptedException
+	{
+		FFmpegFrameGrabber grabber = new FFmpegFrameGrabber(openVideoStream());
+		grabber.setFormat("mp4");
+		grabber.start();
+		grabber.setTimestamp(startTimestamp);
+
+		if(frameGrabber.get() != null)
+		{
+			frameGrabber.get().close();
+		}
+		frameGrabber.set(grabber);
+	}
+
+	public InputStream openVideoStream() throws IOException, InterruptedException
+	{
+		if(linkPattern.matcher(video).matches())
+		{
+			if(video.endsWith(".mp4"))
+			{
+				URL url = new URL(video);
+				return Utils.openURLStream(url);
+			}
+			else
+			{
+				Process process = new ProcessBuilder()
+						.command("youtube-dl", "-f", "bestvideo[ext=mp4]/best[ext=mp4]", "-g", video)
+						.redirectError(ProcessBuilder.Redirect.INHERIT)
+						.start();
+				int code;
+				if((code = process.waitFor())==0)
+				{
+					String url = IOUtils.toString(process.getInputStream(), StandardCharsets.UTF_8);
+					return Utils.openURLStream(new URL(url));
+				}
+				else
+				{
+					throw new IOException("youtube-dl returned exit code "+code);
+				}
+			}
+		}
+		else
+		{
+			return new FileInputStream(video);
+		}
 	}
 
 	private void prepare()
@@ -362,10 +438,16 @@ public class DynamicWallpaper
 
 		try
 		{
+			if(endTimestamp > 0 && frameGrabber.get().getTimestamp() >= endTimestamp)
+			{
+				frameGrabber.get().setTimestamp(startTimestamp);
+			}
+
 			Frame frame = frameGrabber.get().grabImage();
 			if(frame == null)
 			{
-				frameGrabber.get().setFrameNumber(0);
+				frameGrabber.get().setTimestamp(startTimestamp);
+
 				frame = frameGrabber.get().grabImage();
 				if(frame == null)
 					return;

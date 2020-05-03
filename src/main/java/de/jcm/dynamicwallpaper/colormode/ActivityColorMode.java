@@ -139,7 +139,7 @@ public class ActivityColorMode extends ColorMode
 			}
 		}
 
-		interpolationStepSize = object.optFloat("interpolation_step_size", 2.0f);
+		interpolationStepSize = object.optFloat("interpolationStepSize", 2.0f);
 	}
 
 	@Override
@@ -151,7 +151,7 @@ public class ActivityColorMode extends ColorMode
 			entry.write(object1);
 			object.append("colors", object1);
 		}
-		object.put("interpolation_step_size", interpolationStepSize);
+		object.put("interpolationStepSize", interpolationStepSize);
 	}
 
 	@Override
