@@ -67,6 +67,8 @@ public class DynamicWallpaper
 	// whether to store the video as a relative path (if possible)
 	boolean relative;
 
+	double fps;
+
 	// timestamp (in microseconds) to seek to at beginning or video restart
 	long startTimestamp = 0;
 	// timestamp (in microseconds) to trigger video restart when reached, -1 to disable
@@ -288,8 +290,8 @@ public class DynamicWallpaper
 
 		// Make the OpenGL context current
 		glfwMakeContextCurrent(window);
-		// Enable v-sync
-		glfwSwapInterval(1);
+		// Disable v-sync
+		glfwSwapInterval(0);
 
 		// Make the window visible
 		glfwShowWindow(window);
@@ -301,6 +303,8 @@ public class DynamicWallpaper
 		grabber.setFormat("mp4");
 		grabber.start();
 		grabber.setTimestamp(startTimestamp);
+
+		fps = grabber.getVideoFrameRate();
 
 		if(frameGrabber.get() != null)
 		{
@@ -418,6 +422,7 @@ public class DynamicWallpaper
 		// the window or has pressed the ESCAPE key.
 		while(!glfwWindowShouldClose(window))
 		{
+			long frameStart = System.currentTimeMillis();
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // clear the framebuffer
 
 			render();
@@ -427,6 +432,26 @@ public class DynamicWallpaper
 			// Poll for window events. The key callback above will only be
 			// invoked during this call.
 			glfwPollEvents();
+
+			long frameEnd = System.currentTimeMillis();
+			long frameTime = frameEnd - frameStart;
+			long sleepTime = (long)(1000/fps - frameTime);
+			if(sleepTime < 0)
+			{
+				System.out.printf("Cannot sync at %.02f FPS. Running %d ms behind.\n",
+				                  fps, -sleepTime);
+			}
+			else
+			{
+				try
+				{
+					Thread.sleep(sleepTime);
+				}
+				catch(InterruptedException e)
+				{
+					e.printStackTrace();
+				}
+			}
 		}
 	}
 
