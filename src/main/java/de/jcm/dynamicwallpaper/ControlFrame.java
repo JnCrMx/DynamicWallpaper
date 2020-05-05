@@ -87,7 +87,9 @@ public class ControlFrame extends JFrame
 					relativePathCheckBox.setSelected(wallpaper.relative);
 					moreOptions.add(relativePathCheckBox);
 
+					moreOptions.add(Box.createHorizontalStrut(5));
 					moreOptions.add(Box.createHorizontalGlue());
+					moreOptions.add(Box.createHorizontalStrut(5));
 
 					JLabel startTimeLabel = new JLabel("start time");
 					moreOptions.add(startTimeLabel);
@@ -100,13 +102,17 @@ public class ControlFrame extends JFrame
 					JLabel startTimeUnitLabel = new JLabel(" s");
 					moreOptions.add(startTimeUnitLabel);
 
+					moreOptions.add(Box.createHorizontalStrut(5));
 					moreOptions.add(Box.createHorizontalGlue());
+					moreOptions.add(Box.createHorizontalStrut(5));
 
 					JLabel endTimeLabel = new JLabel("end time");
 					moreOptions.add(endTimeLabel);
 
 					endTime = new JSpinner(
-							new SpinnerNumberModel(wallpaper.endTimestamp/1000000.0,
+							new SpinnerNumberModel(wallpaper.endTimestamp<=0?
+									                       -1:
+									                       wallpaper.endTimestamp/1000000.0,
 							                       -1.0, 10000.0, 1.0));
 					moreOptions.add(endTime);
 
@@ -167,11 +173,25 @@ public class ControlFrame extends JFrame
 			controlButtonPanel.setBorder(new TitledBorder("Wallpaper Control"));
 			{
 				JButton apply = new JButton("Apply");
-				apply.addActionListener(e->update());
+				apply.addActionListener(e-> apply());
 				controlButtonPanel.add(apply);
 
 				JButton exit = new JButton("Exit");
-				exit.addActionListener(e-> GLFW.glfwSetWindowShouldClose(wallpaper.getWindow(), true));
+				exit.addActionListener(e->{
+					int option = JOptionPane.showConfirmDialog(this,
+					                                           "Save changes before exit?",
+					                                           "Confirm Exit",
+					                                           JOptionPane.YES_NO_CANCEL_OPTION);
+					if(option == JOptionPane.CANCEL_OPTION || option == JOptionPane.CLOSED_OPTION)
+					{
+						return;
+					}
+					if(option == JOptionPane.YES_OPTION)
+					{
+						save(false);
+					}
+					GLFW.glfwSetWindowShouldClose(wallpaper.getWindow(), true);
+				});
 				controlButtonPanel.add(exit);
 			}
 			contentPane.add(controlButtonPanel, BorderLayout.SOUTH);
@@ -213,7 +233,12 @@ public class ControlFrame extends JFrame
 		pack();
 	}
 
-	public void update()
+	public void apply()
+	{
+		save(true);
+	}
+
+	public void save(boolean apply)
 	{
 		if(!filePathField.getText().isEmpty())
 		{
@@ -223,13 +248,16 @@ public class ControlFrame extends JFrame
 				if(!video.equals(wallpaper.video))
 				{
 					wallpaper.video = video;
-					try
+					if(apply)
 					{
-						wallpaper.startFrameGrabber();
-					}
-					catch(IOException | InterruptedException e)
-					{
-						e.printStackTrace();
+						try
+						{
+							wallpaper.startFrameGrabber();
+						}
+						catch(IOException | InterruptedException e)
+						{
+							e.printStackTrace();
+						}
 					}
 				}
 			}
@@ -243,13 +271,19 @@ public class ControlFrame extends JFrame
 						if(!Files.isSameFile(newFile.toPath(), new File(wallpaper.video).toPath()))
 						{
 							wallpaper.video = newFile.getPath();
-							wallpaper.startFrameGrabber();
+							if(apply)
+							{
+								wallpaper.startFrameGrabber();
+							}
 						}
 					}
 					catch(InvalidPathException ignored)
 					{
 						wallpaper.video = newFile.getPath();
-						wallpaper.startFrameGrabber();
+						if(apply)
+						{
+							wallpaper.startFrameGrabber();
+						}
 					}
 				}
 				catch(IOException | InterruptedException e)
@@ -267,5 +301,9 @@ public class ControlFrame extends JFrame
 
 		wallpaper.colorMode = colorMode;
 		modeConfigurationPanel.apply();
+
+		// if we are going to shutdown (-> confirm dialog), we don't need to save,
+		// but it's safer I guess, just in case we crash on shutdown
+		wallpaper.saveConfig();
 	}
 }

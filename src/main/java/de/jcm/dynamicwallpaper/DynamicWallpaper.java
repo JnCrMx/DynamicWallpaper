@@ -76,8 +76,6 @@ public class DynamicWallpaper
 
 	public void run()
 	{
-		Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
-
 		loadConfig();
 		executor.scheduleAtFixedRate(()->{
 			if(colorMode != null)
@@ -181,7 +179,7 @@ public class DynamicWallpaper
 		}
 	}
 
-	private void saveConfig()
+	void saveConfig()
 	{
 		JSONObject object = new JSONObject();
 
