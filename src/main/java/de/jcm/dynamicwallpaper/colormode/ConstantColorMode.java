@@ -51,4 +51,10 @@ public class ConstantColorMode extends ColorMode
 			}
 		};
 	}
+
+	@Override
+	public String getName()
+	{
+		return "Constant Color";
+	}
 }

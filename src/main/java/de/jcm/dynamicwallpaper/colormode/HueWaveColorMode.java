@@ -58,4 +58,10 @@ public class HueWaveColorMode extends ColorMode
 			}
 		};
 	}
+
+	@Override
+	public String getName()
+	{
+		return "Hue Wave";
+	}
 }

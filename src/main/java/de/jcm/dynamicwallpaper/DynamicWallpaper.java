@@ -1,7 +1,9 @@
 package de.jcm.dynamicwallpaper;
 
+import de.jcm.dynamicwallpaper.colormode.ActivityColorMode;
 import de.jcm.dynamicwallpaper.colormode.ColorMode;
 import de.jcm.dynamicwallpaper.colormode.ConstantColorMode;
+import de.jcm.dynamicwallpaper.colormode.HueWaveColorMode;
 import de.jcm.dynamicwallpaper.render.Mesh;
 import de.jcm.dynamicwallpaper.render.Shader;
 import de.jcm.dynamicwallpaper.render.ShaderProgram;
@@ -10,6 +12,7 @@ import org.apache.commons.io.IOUtils;
 import org.bytedeco.ffmpeg.global.avutil;
 import org.bytedeco.javacv.FFmpegFrameGrabber;
 import org.bytedeco.javacv.Frame;
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.glfw.GLFWVidMode;
@@ -28,6 +31,7 @@ import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -44,6 +48,13 @@ import static org.lwjgl.system.MemoryUtil.NULL;
 
 public class DynamicWallpaper
 {
+	static
+	{
+		ColorMode.MODES.add(ConstantColorMode.class);
+		ColorMode.MODES.add(HueWaveColorMode.class);
+		ColorMode.MODES.add(ActivityColorMode.class);
+	}
+
 	public static final Pattern linkPattern = Pattern.compile("(http(s|)*://|www\\.)\\S*");
 
 	// The window handle
@@ -60,17 +71,18 @@ public class DynamicWallpaper
 
 	private ControlFrame controlFrame;
 
-	ColorMode colorMode;
-	final AtomicReference<FFmpegFrameGrabber> frameGrabber = new AtomicReference<>();
+	private ColorMode colorMode;
+	private final HashMap<String, JSONObject> configurations = new HashMap<>();
+	private final AtomicReference<FFmpegFrameGrabber> frameGrabber = new AtomicReference<>();
 
-	String video;
+	private String video;
 	// whether to store the video as a relative path (if possible)
-	boolean relative;
+	private boolean relative;
 
 	// timestamp (in microseconds) to seek to at beginning or video restart
-	long startTimestamp = 0;
+	private long startTimestamp = 0;
 	// timestamp (in microseconds) to trigger video restart when reached, -1 to disable
-	long endTimestamp = -1;
+	private long endTimestamp = -1;
 
 	private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
@@ -160,13 +172,24 @@ public class DynamicWallpaper
 				endTimestamp = videoConfig.optLong("endTimestamp", -1);
 			}
 
+			JSONArray configs = configObject.optJSONArray("modeConfigs");
+			if(configs != null)
+			{
+				for(int i = 0; i < configs.length(); i++)
+				{
+					JSONObject obj = configs.getJSONObject(i);
+					String name = obj.getString("mode");
+					JSONObject cfg = obj.getJSONObject("config");
+
+					configurations.put(name, cfg);
+				}
+			}
+
 			String colorMode = configObject.optString("mode", ConstantColorMode.class.getName());
 			try
 			{
 				this.colorMode = (ColorMode) Class.forName(colorMode).getConstructor().newInstance();
-
-				JSONObject modeConfig = configObject.optJSONObject("config");
-				this.colorMode.load(modeConfig==null?new JSONObject():modeConfig);
+				this.colorMode.load(configurations.computeIfAbsent(this.colorMode.getClass().getName(), k->new JSONObject()));
 			}
 			catch(InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException | ClassNotFoundException e)
 			{
@@ -210,15 +233,21 @@ public class DynamicWallpaper
 		object.put("videoConfig", videoConfig);
 
 		object.put("mode", colorMode.getClass().getName());
+		configurations.forEach((mode, cfg)-> {
+			if(colorMode.getClass().getName().equals(mode))
+				colorMode.save(configurations.compute(mode, (k,v)->new JSONObject()));
 
-		JSONObject modeConfig = new JSONObject();
-		colorMode.save(modeConfig);
-		object.put("config", modeConfig);
+			JSONObject o2 = new JSONObject();
+			o2.put("mode", mode);
+			o2.put("config", cfg);
+			object.append("modeConfigs", o2);
+		});
 
 		File config = new File("config.json");
 		try(BufferedWriter writer = new BufferedWriter(new FileWriter(config)))
 		{
-			writer.write(object.toString(4));
+			object.write(writer, 4, 0);
+			writer.write('\n');
 		}
 		catch(IOException e)
 		{
@@ -465,6 +494,84 @@ public class DynamicWallpaper
 		program.setUniform(colorFilter, colorMode.getColor());
 
 		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+	}
+
+	public ColorMode getColorMode()
+	{
+		return colorMode;
+	}
+
+	public String getVideo()
+	{
+		return video;
+	}
+
+	public long getVideoStartTimestamp()
+	{
+		return startTimestamp;
+	}
+
+	public long getVideoEndTimestamp()
+	{
+		return endTimestamp;
+	}
+
+	public boolean isRelativeVideoPath()
+	{
+		return relative;
+	}
+
+	public ColorMode computeColorMode(String className)
+	{
+		if(colorMode.getClass().getName().equals(className))
+		{
+			return colorMode;
+		}
+		else
+		{
+			try
+			{
+				ColorMode colorMode = (ColorMode) Class.forName(className).getConstructor().newInstance();
+				colorMode.load(configurations.computeIfAbsent(className, k->new JSONObject()));
+				return colorMode;
+			}
+			catch(InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException | ClassNotFoundException e)
+			{
+				e.printStackTrace();
+			}
+			return null;
+		}
+	}
+
+	public void setVideo(String video)
+	{
+		this.video = video;
+	}
+
+	public void setRelativeVideoPath(boolean relative)
+	{
+		this.relative = relative;
+	}
+
+	public void setVideoStartTimestamp(long startTimestamp)
+	{
+		this.startTimestamp = startTimestamp;
+		if(this.startTimestamp < 0)
+			this.startTimestamp = 0;
+	}
+
+	public void setVideoEndTimestamp(long endTimestamp)
+	{
+		this.endTimestamp = endTimestamp;
+		if(this.endTimestamp <= 0)
+			this.endTimestamp = -1;
+	}
+
+	public void setColorMode(ColorMode colorMode)
+	{
+		this.colorMode.save(configurations.compute(this.colorMode.getClass().getName(), (k,v)->new JSONObject()));
+		this.colorMode = colorMode;
+		this.colorMode.save(configurations.compute(this.colorMode.getClass().getName(), (k,v)->new JSONObject()));
 	}
 
 	public static void main(String[] args)
