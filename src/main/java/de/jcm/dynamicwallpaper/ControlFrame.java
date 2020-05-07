@@ -175,6 +175,15 @@ public class ControlFrame extends JFrame
 				apply.addActionListener(e-> apply());
 				controlButtonPanel.add(apply);
 
+				JButton pausePlayButton = new JButton("Pause");
+				pausePlayButton.addActionListener(e->{
+					boolean pause = !wallpaper.isPaused();
+					wallpaper.setPaused(pause);
+
+					pausePlayButton.setText(pause?"Play":"Pause");
+				});
+				controlButtonPanel.add(pausePlayButton);
+
 				JButton exit = new JButton("Exit");
 				exit.addActionListener(e->{
 					int option = JOptionPane.showConfirmDialog(this,

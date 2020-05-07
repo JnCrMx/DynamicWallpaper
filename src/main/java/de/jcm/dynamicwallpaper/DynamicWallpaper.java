@@ -504,23 +504,14 @@ public class DynamicWallpaper
 		// the window or has pressed the ESCAPE key.
 		while(!glfwWindowShouldClose(window))
 		{
-			if(paused.get())
-			{
-				try
-				{
-					Thread.sleep(100);
-				}
-				catch(InterruptedException e)
-				{
-					e.printStackTrace();
-				}
-			}
-			else
-			{
-				glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // clear the framebuffer
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // clear the framebuffer
 
-				render();
+			if(!paused.get())
+			{
+				updateTexture();
 			}
+			render();
+
 			glfwSwapBuffers(window); // swap the color buffers
 
 			// Poll for window events. The key callback above will only be
@@ -529,7 +520,7 @@ public class DynamicWallpaper
 		}
 	}
 
-	void render()
+	void updateTexture()
 	{
 		texture.bind();
 
@@ -562,8 +553,12 @@ public class DynamicWallpaper
 		catch(Throwable t)
 		{
 			t.printStackTrace();
-			return;
 		}
+	}
+
+	void render()
+	{
+		texture.bind();
 
 		cube.bind();
 		program.use();
@@ -653,6 +648,16 @@ public class DynamicWallpaper
 		this.colorMode.save(configurations.compute(this.colorMode.getClass().getName(), (k,v)->new JSONObject()));
 		this.colorMode = colorMode;
 		this.colorMode.save(configurations.compute(this.colorMode.getClass().getName(), (k,v)->new JSONObject()));
+	}
+
+	public void setPaused(boolean paused)
+	{
+		this.paused.set(paused);
+	}
+
+	public boolean isPaused()
+	{
+		return paused.get();
 	}
 
 	public static void main(String[] args)
