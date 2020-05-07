@@ -9,6 +9,7 @@ import de.jcm.dynamicwallpaper.render.Shader;
 import de.jcm.dynamicwallpaper.render.ShaderProgram;
 import de.jcm.dynamicwallpaper.render.Texture;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.input.TeeInputStream;
 import org.bytedeco.ffmpeg.global.avutil;
 import org.bytedeco.javacv.FFmpegFrameGrabber;
 import org.bytedeco.javacv.Frame;
@@ -35,6 +36,7 @@ import java.util.HashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
@@ -73,11 +75,16 @@ public class DynamicWallpaper
 
 	private ColorMode colorMode;
 	private final HashMap<String, JSONObject> configurations = new HashMap<>();
+
 	private final AtomicReference<FFmpegFrameGrabber> frameGrabber = new AtomicReference<>();
+	private AtomicBoolean paused = new AtomicBoolean(true);
 
 	private String video;
 	// whether to store the video as a relative path (if possible)
 	private boolean relative;
+
+	private boolean hasCache;
+	private boolean isFileInput;
 
 	// timestamp (in microseconds) to seek to at beginning or video restart
 	private long startTimestamp = 0;
@@ -129,6 +136,9 @@ public class DynamicWallpaper
 		avutil.av_log_set_level(avutil.AV_LOG_ERROR);
 		try
 		{
+			if(new File("cache.mp4").exists())
+				hasCache = true;
+
 			startFrameGrabber();
 		}
 		catch(IOException | InterruptedException e)
@@ -230,6 +240,8 @@ public class DynamicWallpaper
 		JSONObject videoConfig = new JSONObject();
 		videoConfig.put("startTimestamp", startTimestamp);
 		videoConfig.put("endTimestamp", endTimestamp);
+		if(hasCache)
+			videoConfig.put("cachedVideo", video);
 		object.put("videoConfig", videoConfig);
 
 		object.put("mode", colorMode.getClass().getName());
@@ -326,26 +338,52 @@ public class DynamicWallpaper
 
 	public void startFrameGrabber() throws IOException, InterruptedException
 	{
-		FFmpegFrameGrabber grabber = new FFmpegFrameGrabber(openVideoStream());
-		grabber.setFormat("mp4");
-		grabber.start();
-		grabber.setTimestamp(startTimestamp);
-
-		if(frameGrabber.get() != null)
+		if(frameGrabber.get()!=null)
 		{
+			paused.set(true);
 			frameGrabber.get().close();
 		}
+
+		FFmpegFrameGrabber grabber;
+
+		Object o = openVideoStream();
+		if(o instanceof InputStream)
+		{
+			grabber = new FFmpegFrameGrabber((InputStream) o, 0);
+			grabber.setFormat("mp4");
+			grabber.start(false);
+			isFileInput = false;
+		}
+		else if(o instanceof File)
+		{
+			grabber = new FFmpegFrameGrabber((File)o);
+			grabber.start();
+			isFileInput = true;
+		}
+		else
+		{
+			throw new RuntimeException("cannot open video stream");
+		}
+		grabber.setTimestamp(startTimestamp);
+
 		frameGrabber.set(grabber);
+		paused.set(false);
 	}
 
-	public InputStream openVideoStream() throws IOException, InterruptedException
+	public Object openVideoStream() throws IOException, InterruptedException
 	{
 		if(linkPattern.matcher(video).matches())
 		{
+			if(hasCache)
+			{
+				System.out.println("Using cached video for "+video);
+				return new File("cache.mp4");
+			}
+
 			if(video.endsWith(".mp4"))
 			{
 				URL url = new URL(video);
-				return Utils.openURLStream(url);
+				return createCacheStream(Utils.openURLStream(url));
 			}
 			else
 			{
@@ -356,8 +394,9 @@ public class DynamicWallpaper
 				int code;
 				if((code = process.waitFor())==0)
 				{
-					String url = IOUtils.toString(process.getInputStream(), StandardCharsets.UTF_8);
-					return Utils.openURLStream(new URL(url));
+					String urlString = IOUtils.toString(process.getInputStream(), StandardCharsets.UTF_8);
+					URL url = new URL(urlString);
+					return createCacheStream(Utils.openURLStream(url));
 				}
 				else
 				{
@@ -367,8 +406,22 @@ public class DynamicWallpaper
 		}
 		else
 		{
-			return new FileInputStream(video);
+			return new File(video);
 		}
+	}
+
+	private TeeInputStream createCacheStream(InputStream in) throws FileNotFoundException
+	{
+		return new TeeInputStream(in, new FileOutputStream("cache.mp4")
+		{
+			@Override
+			public void close() throws IOException
+			{
+				super.close();
+				hasCache = true;
+				System.out.println("Finished caching video!");
+			}
+		}, true);
 	}
 
 	private void prepare()
@@ -447,10 +500,23 @@ public class DynamicWallpaper
 		// the window or has pressed the ESCAPE key.
 		while(!glfwWindowShouldClose(window))
 		{
-			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // clear the framebuffer
+			if(paused.get())
+			{
+				try
+				{
+					Thread.sleep(100);
+				}
+				catch(InterruptedException e)
+				{
+					e.printStackTrace();
+				}
+			}
+			else
+			{
+				glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // clear the framebuffer
 
-			render();
-
+				render();
+			}
 			glfwSwapBuffers(window); // swap the color buffers
 
 			// Poll for window events. The key callback above will only be
@@ -473,7 +539,14 @@ public class DynamicWallpaper
 			Frame frame = frameGrabber.get().grabImage();
 			if(frame == null)
 			{
-				frameGrabber.get().setTimestamp(startTimestamp);
+				if(isFileInput)
+				{
+					frameGrabber.get().setTimestamp(startTimestamp);
+				}
+				else
+				{
+					startFrameGrabber();
+				}
 
 				frame = frameGrabber.get().grabImage();
 				if(frame == null)
@@ -546,6 +619,7 @@ public class DynamicWallpaper
 	public void setVideo(String video)
 	{
 		this.video = video;
+		hasCache = false;
 	}
 
 	public void setRelativeVideoPath(boolean relative)
@@ -562,6 +636,9 @@ public class DynamicWallpaper
 
 	public void setVideoEndTimestamp(long endTimestamp)
 	{
+		if(endTimestamp > this.endTimestamp)
+			hasCache = false;   // We need to download the part of the video we skipped before
+
 		this.endTimestamp = endTimestamp;
 		if(this.endTimestamp <= 0)
 			this.endTimestamp = -1;
