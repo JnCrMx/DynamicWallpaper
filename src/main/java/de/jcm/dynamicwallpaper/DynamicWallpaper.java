@@ -281,6 +281,10 @@ public class DynamicWallpaper
 
 		saveConfig();
 
+		File cache = new File("cache.mp4");
+		if(!hasCache && cache.exists())
+			cache.delete(); // delete cache if it's incomplete
+
 		Runtime.getRuntime().halt(0);
 	}
 
