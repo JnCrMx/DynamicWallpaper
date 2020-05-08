@@ -451,8 +451,8 @@ public class DynamicWallpaper
 	{
 		try
 		{
-			Shader vertexShader = Shader.loadShader(GL_VERTEX_SHADER, "/plane.vs");
-			Shader fragmentShader = Shader.loadShader(GL_FRAGMENT_SHADER, "/video.fs");
+			Shader vertexShader = Shader.loadShader(GL_VERTEX_SHADER, "/plane.vsh");
+			Shader fragmentShader = Shader.loadShader(GL_FRAGMENT_SHADER, "/video.fsh");
 
 			program = new ShaderProgram();
 			program.attachShader(vertexShader);
