@@ -13,6 +13,7 @@ import org.apache.commons.io.input.TeeInputStream;
 import org.bytedeco.ffmpeg.global.avutil;
 import org.bytedeco.javacv.FFmpegFrameGrabber;
 import org.bytedeco.javacv.Frame;
+import org.bytedeco.javacv.FrameGrabber;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.lwjgl.glfw.GLFWErrorCallback;
@@ -281,11 +282,25 @@ public class DynamicWallpaper
 		glfwTerminate();
 		glfwSetErrorCallback(null).free();
 
+		try
+		{
+			frameGrabber.get().close();
+		}
+		catch(FrameGrabber.Exception e)
+		{
+			e.printStackTrace();
+		}
+
 		saveConfig();
 
 		File cache = new File("cache.mp4");
 		if(!hasCache && cache.exists())
-			cache.delete(); // delete cache if it's incomplete
+		{
+			if(!cache.delete()) // delete cache if it's incomplete
+			{
+				System.out.println("Could not delete incomplete cache. Please do this manually.");
+			}
+		}
 
 		Runtime.getRuntime().halt(0);
 	}
