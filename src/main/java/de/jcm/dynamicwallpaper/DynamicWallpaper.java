@@ -4,6 +4,7 @@ import de.jcm.dynamicwallpaper.colormode.ActivityColorMode;
 import de.jcm.dynamicwallpaper.colormode.ColorMode;
 import de.jcm.dynamicwallpaper.colormode.ConstantColorMode;
 import de.jcm.dynamicwallpaper.colormode.HueWaveColorMode;
+import de.jcm.dynamicwallpaper.extra.LoadingScreen;
 import de.jcm.dynamicwallpaper.render.Mesh;
 import de.jcm.dynamicwallpaper.render.Shader;
 import de.jcm.dynamicwallpaper.render.ShaderProgram;
@@ -37,7 +38,6 @@ import java.util.HashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 
@@ -78,7 +78,9 @@ public class DynamicWallpaper
 	private final HashMap<String, JSONObject> configurations = new HashMap<>();
 
 	private final AtomicReference<FFmpegFrameGrabber> frameGrabber = new AtomicReference<>();
-	private AtomicBoolean paused = new AtomicBoolean(true);
+	private final AtomicReference<WallpaperState> state = new AtomicReference<>(WallpaperState.LOADING);
+
+	private LoadingScreen loadingScreen;
 
 	private String video;
 	// whether to store the video as a relative path (if possible)
@@ -87,7 +89,7 @@ public class DynamicWallpaper
 	private boolean hasCache;
 	private boolean isFileInput;
 
-	private double fps;
+	private double fps = 30.0;
 
 	// timestamp (in microseconds) to seek to at beginning or video restart
 	private long startTimestamp = 0;
@@ -136,7 +138,10 @@ public class DynamicWallpaper
 			e.printStackTrace();
 		}
 
+		loadingScreen = new LoadingScreen();
+
 		avutil.av_log_set_level(avutil.AV_LOG_ERROR);
+		Thread loadVideo = new Thread(()->{
 		try
 		{
 			if(new File("cache.mp4").exists())
@@ -147,7 +152,8 @@ public class DynamicWallpaper
 		catch(IOException | InterruptedException e)
 		{
 			e.printStackTrace();
-		}
+		}});
+		loadVideo.start();
 
 		init();
 		loop();
@@ -361,7 +367,8 @@ public class DynamicWallpaper
 	{
 		if(frameGrabber.get()!=null)
 		{
-			paused.set(true);
+			fps = 30.0;
+			state.set(WallpaperState.LOADING);
 			frameGrabber.get().close();
 		}
 
@@ -390,7 +397,7 @@ public class DynamicWallpaper
 		fps = grabber.getVideoFrameRate();
 
 		frameGrabber.set(grabber);
-		paused.set(false);
+		state.set(WallpaperState.PLAYING);
 	}
 
 	public Object openVideoStream() throws IOException, InterruptedException
@@ -489,6 +496,8 @@ public class DynamicWallpaper
 				cube = new Mesh();
 				cube.fill(vertices, textures, elements, program);
 			}
+
+			loadingScreen.prepare();
 		}
 		catch(IOException e)
 		{
@@ -505,6 +514,8 @@ public class DynamicWallpaper
 		// bindings available for use.
 		GL.createCapabilities();
 
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glEnable(GL_BLEND);
 		glEnable(GL_TEXTURE_2D);
 
 		texture = new Texture();
@@ -526,11 +537,15 @@ public class DynamicWallpaper
 			long frameStart = System.currentTimeMillis();
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // clear the framebuffer
 
-			if(!paused.get())
+			if(state.get() == WallpaperState.PLAYING)
 			{
 				updateTexture();
 			}
 			render();
+			if(state.get() == WallpaperState.LOADING)
+			{
+				loadingScreen.render();
+			}
 
 			glfwSwapBuffers(window); // swap the color buffers
 
@@ -540,7 +555,7 @@ public class DynamicWallpaper
 
 			long frameEnd = System.currentTimeMillis();
 			long frameTime = frameEnd - frameStart;
-			long sleepTime = (long)(1000/fps - frameTime);
+			long sleepTime = (long) (1000 / fps - frameTime);
 			if(sleepTime < 0)
 			{
 				System.out.printf("Cannot sync at %.02f FPS. Running %d ms behind.\n",
@@ -692,12 +707,15 @@ public class DynamicWallpaper
 
 	public void setPaused(boolean paused)
 	{
-		this.paused.set(paused);
+		if(state.get() == WallpaperState.LOADING)
+			return;
+
+		state.set(paused?WallpaperState.PAUSED:WallpaperState.PLAYING);
 	}
 
 	public boolean isPaused()
 	{
-		return paused.get();
+		return state.get() == WallpaperState.PAUSED;
 	}
 
 	public static void main(String[] args)

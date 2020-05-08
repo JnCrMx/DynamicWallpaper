@@ -177,9 +177,10 @@ public class ControlFrame extends JFrame
 
 				JButton pausePlayButton = new JButton("Pause");
 				pausePlayButton.addActionListener(e->{
-					boolean pause = !wallpaper.isPaused();
-					wallpaper.setPaused(pause);
+					boolean pause = wallpaper.isPaused();
+					wallpaper.setPaused(!pause);
 
+					pause = wallpaper.isPaused();
 					pausePlayButton.setText(pause?"Play":"Pause");
 				});
 				controlButtonPanel.add(pausePlayButton);
