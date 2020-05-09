@@ -1,12 +1,15 @@
 package de.jcm.dynamicwallpaper;
 
+import com.sun.jna.Memory;
 import com.sun.jna.Platform;
 import com.sun.jna.Pointer;
+import com.sun.jna.platform.unix.X11;
 import com.sun.jna.platform.win32.User32;
 import com.sun.jna.platform.win32.WinDef;
 import com.sun.jna.platform.win32.WinUser;
 import org.apache.commons.io.IOUtils;
 import org.lwjgl.glfw.GLFWNativeWin32;
+import org.lwjgl.glfw.GLFWNativeX11;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -59,16 +62,22 @@ public class Utils
 	{
 		if(Platform.isWindows())
 			windowsMakeWallpaper(window);
+		else if(Platform.isLinux() && Platform.isX11())
+			linuxMakeWallpaper(window);
 		else
-			throw new UnsupportedOperationException("only available on Windows");
+			throw new UnsupportedOperationException("not supported on this platform");
 	}
 
 	public static void destroyWallpaper(long window)
 	{
 		if(Platform.isWindows())
 			windowsDestroyWallpaper(window);
+		else if(Platform.isLinux() && Platform.isX11())
+		{
+			// We don't need to do anything here I think
+		}
 		else
-			throw new UnsupportedOperationException("only available on Windows");
+			throw new UnsupportedOperationException("not supported on this platform");
 	}
 
 	private static void windowsMakeWallpaper(long window)
@@ -135,6 +144,82 @@ public class Utils
 		User32.INSTANCE.SetWindowLong(thisWindow, User32.GWL_EXSTYLE, (int) exStyle);
 
 		getWorkerW();
+	}
+
+	private static void linuxMakeWallpaper(long window)
+	{
+		long nativeWindow = GLFWNativeX11.glfwGetX11Window(window);
+		X11.Window thisWindow = new X11.Window(nativeWindow);
+		X11.Display display = X11.INSTANCE.XOpenDisplay(null);
+
+		Memory memory = new Memory(8);
+
+		/*
+		X11.Window desktop = findByWindowType(display, X11.INSTANCE.XDefaultRootWindow(display),
+		                                      xAtom(display, "_NET_WM_WINDOW_TYPE_DESKTOP"));
+		memory.setNativeLong(0, xAtom(display, "_NET_WM_WINDOW_TYPE_DESKTOP"));
+		X11.INSTANCE.XChangeProperty(display, desktop, xAtom(display, "_NET_WM_WINDOW_TYPE"), X11.XA_ATOM,
+		                             32, X11.PropModeReplace, memory, 1);
+		*/
+
+		memory.setNativeLong(0, xAtom(display, "_NET_WM_WINDOW_TYPE_DESKTOP"));
+		X11.INSTANCE.XChangeProperty(display, thisWindow, xAtom(display, "_NET_WM_WINDOW_TYPE"), X11.XA_ATOM,
+		                             32, X11.PropModeReplace, memory, 1);
+
+		memory.setNativeLong(0, xAtom(display, "_NET_WM_STATE_BELOW"));
+		X11.INSTANCE.XChangeProperty(display, thisWindow, xAtom(display, "_NET_WM_STATE"), X11.XA_ATOM,
+		                             32, X11.PropModeAppend, memory, 1);
+
+		X11.INSTANCE.XFlush(display);
+		X11.INSTANCE.XCloseDisplay(display);
+	}
+
+	/*
+	private static X11.Window findByWindowType(X11.Display display, X11.Window window, X11.Atom windowType)
+	{
+		X11.WindowByReference root = new X11.WindowByReference();
+		X11.WindowByReference parent = new X11.WindowByReference();
+		PointerByReference children = new PointerByReference();
+		IntByReference childrenCount = new IntByReference();
+
+		X11.INSTANCE.XQueryTree(display, window, root, parent, children, childrenCount);
+
+		Pointer pointer = children.getValue();
+
+		for(int i=0; i<childrenCount.getValue(); i++)
+		{
+			X11.Window child = new X11.Window(pointer.getLong(8*i));
+
+			X11.AtomByReference type = new X11.AtomByReference();
+			IntByReference format = new IntByReference();
+			NativeLongByReference itemCount = new NativeLongByReference();
+			NativeLongByReference bytesToRead = new NativeLongByReference();
+			PointerByReference prop = new PointerByReference();
+
+			X11.INSTANCE.XGetWindowProperty(display, child, xAtom(display, "_NET_WM_WINDOW_TYPE"),
+			                                new NativeLong(0), new NativeLong(8), false,
+			                                X11.XA_ATOM, type, format, itemCount, bytesToRead, prop);
+
+			if(itemCount.getValue().longValue() == 1)
+			{
+				X11.Atom atom = new X11.Atom(prop.getValue().getLong(0));
+
+				if(atom.equals(windowType))
+					return child;
+			}
+
+			X11.Window result = findByWindowType(display, child, windowType);
+			if(result != null)
+				return result;
+		}
+
+		return null;
+	}
+	*/
+
+	private static X11.Atom xAtom(X11.Display display, String name)
+	{
+		return X11.INSTANCE.XInternAtom(display, name, false);
 	}
 
 	public static String read(String path) throws IOException

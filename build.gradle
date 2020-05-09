@@ -1,3 +1,5 @@
+import org.gradle.internal.os.OperatingSystem
+
 buildscript {
     repositories {
         jcenter()
@@ -21,7 +23,15 @@ version '1.0'
 sourceCompatibility = 1.8
 
 project.ext.lwjglVersion = "3.2.3"
-project.ext.lwjglNatives = "natives-windows"
+
+switch (OperatingSystem.current()) {
+    case OperatingSystem.LINUX:
+        project.ext.lwjglNatives = "natives-linux"
+        break
+    case OperatingSystem.WINDOWS:
+        project.ext.lwjglNatives = "natives-windows"
+        break
+}
 
 repositories {
     mavenCentral()
@@ -55,8 +65,12 @@ dependencies {
     // only include natives for the platforms we want to use (Windows, 32 and 64 bit)
     implementation group: 'org.bytedeco', name: 'ffmpeg', version: '4.2.2-1.5.3', classifier: 'windows-x86'
     implementation group: 'org.bytedeco', name: 'ffmpeg', version: '4.2.2-1.5.3', classifier: 'windows-x86_64'
+    implementation group: 'org.bytedeco', name: 'ffmpeg', version: '4.2.2-1.5.3', classifier: 'linux-x86'
+    implementation group: 'org.bytedeco', name: 'ffmpeg', version: '4.2.2-1.5.3', classifier: 'linux-x86_64'
     implementation group: 'org.bytedeco', name: 'javacpp', version: '1.5.3', classifier: 'windows-x86'
     implementation group: 'org.bytedeco', name: 'javacpp', version: '1.5.3', classifier: 'windows-x86_64'
+    implementation group: 'org.bytedeco', name: 'javacpp', version: '1.5.3', classifier: 'linux-x86'
+    implementation group: 'org.bytedeco', name: 'javacpp', version: '1.5.3', classifier: 'linux-x86_64'
 }
 
 buildConfig {
