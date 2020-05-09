@@ -41,8 +41,8 @@ public class LoadingScreen
 
 	public void prepare() throws IOException
 	{
-		Shader vertexShader = Shader.loadShader(GL_VERTEX_SHADER, "/loading.vsh");
-		Shader fragmentShader = Shader.loadShader(GL_FRAGMENT_SHADER, "/loading.fsh");
+		Shader vertexShader = Shader.loadShader(GL_VERTEX_SHADER, "/shaders/loading.vsh");
+		Shader fragmentShader = Shader.loadShader(GL_FRAGMENT_SHADER, "/shaders/loading.fsh");
 
 		program = new ShaderProgram();
 		program.attachShader(vertexShader);
@@ -90,7 +90,7 @@ public class LoadingScreen
 		texture.setParameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		texture.setParameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-		BufferedImage image = ImageIO.read(getClass().getResource("/bubble.png"));
+		BufferedImage image = ImageIO.read(getClass().getResource("/images/bubble.png"));
 
 		int[] pixels = new int[image.getWidth() * image.getHeight()];
 		image.getRGB(0, 0, image.getWidth(), image.getHeight(), pixels, 0, image.getWidth());

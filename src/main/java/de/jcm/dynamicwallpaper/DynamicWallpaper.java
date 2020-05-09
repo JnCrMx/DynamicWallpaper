@@ -115,12 +115,13 @@ public class DynamicWallpaper
 			e.printStackTrace();
 		}
 
-		ImageIcon icon = new ImageIcon(getClass().getResource("/icon.png"));
+		ImageIcon icon = new ImageIcon(getClass().getResource("/images/icon.png"));
 		controlFrame = new ControlFrame(this);
 		controlFrame.setIconImage(icon.getImage());
 
 		SystemTray tray = SystemTray.getSystemTray();
 		TrayIcon trayIcon = new TrayIcon(icon.getImage());
+		trayIcon.setImageAutoSize(true);
 		trayIcon.addMouseListener(new MouseAdapter()
 		{
 			@Override
@@ -458,8 +459,8 @@ public class DynamicWallpaper
 	{
 		try
 		{
-			Shader vertexShader = Shader.loadShader(GL_VERTEX_SHADER, "/plane.vsh");
-			Shader fragmentShader = Shader.loadShader(GL_FRAGMENT_SHADER, "/video.fsh");
+			Shader vertexShader = Shader.loadShader(GL_VERTEX_SHADER, "/shaders/plane.vsh");
+			Shader fragmentShader = Shader.loadShader(GL_FRAGMENT_SHADER, "/shaders/video.fsh");
 
 			program = new ShaderProgram();
 			program.attachShader(vertexShader);
