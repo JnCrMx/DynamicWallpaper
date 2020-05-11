@@ -4,6 +4,7 @@ import de.jcm.dynamicwallpaper.colormode.ActivityColorMode;
 import de.jcm.dynamicwallpaper.colormode.ColorMode;
 import de.jcm.dynamicwallpaper.colormode.ConstantColorMode;
 import de.jcm.dynamicwallpaper.colormode.HueWaveColorMode;
+import de.jcm.dynamicwallpaper.extra.ErrorScreen;
 import de.jcm.dynamicwallpaper.extra.LoadingScreen;
 import de.jcm.dynamicwallpaper.render.Mesh;
 import de.jcm.dynamicwallpaper.render.Shader;
@@ -81,6 +82,7 @@ public class DynamicWallpaper
 	private final AtomicReference<WallpaperState> state = new AtomicReference<>(WallpaperState.LOADING);
 
 	private LoadingScreen loadingScreen;
+	private ErrorScreen errorScreen;
 
 	private String video;
 	// whether to store the video as a relative path (if possible)
@@ -140,6 +142,7 @@ public class DynamicWallpaper
 		}
 
 		loadingScreen = new LoadingScreen();
+		errorScreen = new ErrorScreen();
 
 		avutil.av_log_set_level(avutil.AV_LOG_ERROR);
 		Thread loadVideo = new Thread(()->{
@@ -373,32 +376,41 @@ public class DynamicWallpaper
 			frameGrabber.get().close();
 		}
 
-		FFmpegFrameGrabber grabber;
-
-		Object o = openVideoStream();
-		if(o instanceof InputStream)
+		try
 		{
-			grabber = new FFmpegFrameGrabber((InputStream) o, 0);
-			grabber.setFormat("mp4");
-			grabber.start(false);
-			isFileInput = false;
-		}
-		else if(o instanceof File)
-		{
-			grabber = new FFmpegFrameGrabber((File)o);
-			grabber.start();
-			isFileInput = true;
-		}
-		else
-		{
-			throw new RuntimeException("cannot open video stream");
-		}
-		grabber.setTimestamp(startTimestamp);
+			FFmpegFrameGrabber grabber;
 
-		fps = grabber.getVideoFrameRate();
+			Object o = openVideoStream();
+			if(o instanceof InputStream)
+			{
+				grabber = new FFmpegFrameGrabber((InputStream) o, 0);
+				grabber.setFormat("mp4");
+				grabber.start(false);
+				isFileInput = false;
+			}
+			else if(o instanceof File)
+			{
+				grabber = new FFmpegFrameGrabber((File) o);
+				grabber.start();
+				isFileInput = true;
+			}
+			else
+			{
+				throw new RuntimeException("cannot open video stream");
+			}
+			grabber.setTimestamp(startTimestamp);
 
-		frameGrabber.set(grabber);
-		state.set(WallpaperState.PLAYING);
+			fps = grabber.getVideoFrameRate();
+
+			frameGrabber.set(grabber);
+			state.set(WallpaperState.PLAYING);
+		}
+		catch(Exception e)
+		{
+			state.set(WallpaperState.ERROR);
+
+			throw e;
+		}
 	}
 
 	public Object openVideoStream() throws IOException, InterruptedException
@@ -499,6 +511,7 @@ public class DynamicWallpaper
 			}
 
 			loadingScreen.prepare();
+			errorScreen.prepare();
 		}
 		catch(IOException e)
 		{
@@ -538,14 +551,19 @@ public class DynamicWallpaper
 			long frameStart = System.currentTimeMillis();
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // clear the framebuffer
 
-			if(state.get() == WallpaperState.PLAYING)
+			WallpaperState state = this.state.get();
+			if(state == WallpaperState.PLAYING)
 			{
 				updateTexture();
 			}
 			render();
-			if(state.get() == WallpaperState.LOADING)
+			if(state == WallpaperState.LOADING)
 			{
 				loadingScreen.render();
+			}
+			if(state == WallpaperState.ERROR)
+			{
+				errorScreen.render();
 			}
 
 			glfwSwapBuffers(window); // swap the color buffers

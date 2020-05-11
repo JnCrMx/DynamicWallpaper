@@ -1,6 +1,7 @@
 package de.jcm.dynamicwallpaper;
 
-import de.jcm.dynamicwallpaper.colormode.*;
+import de.jcm.dynamicwallpaper.colormode.ColorMode;
+import de.jcm.dynamicwallpaper.colormode.ColorModeConfigurationPanel;
 import org.lwjgl.glfw.GLFW;
 
 import javax.swing.*;
@@ -13,6 +14,7 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
+import java.nio.file.NoSuchFileException;
 import java.util.Enumeration;
 
 public class ControlFrame extends JFrame
@@ -248,7 +250,13 @@ public class ControlFrame extends JFrame
 						{
 							wallpaper.startFrameGrabber();
 						}
-						catch(IOException | InterruptedException e)
+						catch(IOException e)
+						{
+							JOptionPane.showMessageDialog(null,
+							                              "Failed to open video: "+e.getLocalizedMessage(),
+							                              "Error", JOptionPane.ERROR_MESSAGE);
+						}
+						catch(InterruptedException e)
 						{
 							e.printStackTrace();
 						}
@@ -267,20 +275,38 @@ public class ControlFrame extends JFrame
 							wallpaper.setVideo(newFile.getPath());
 							if(apply)
 							{
-								wallpaper.startFrameGrabber();
+								try
+								{
+									wallpaper.startFrameGrabber();
+								}
+								catch(Exception e)
+								{
+									JOptionPane.showMessageDialog(null,
+									                              "Failed to open video: "+e.getLocalizedMessage(),
+									                              "Error", JOptionPane.ERROR_MESSAGE);
+								}
 							}
 						}
 					}
-					catch(InvalidPathException ignored)
+					catch(InvalidPathException | NoSuchFileException ignored)
 					{
 						wallpaper.setVideo(newFile.getPath());
 						if(apply)
 						{
-							wallpaper.startFrameGrabber();
+							try
+							{
+								wallpaper.startFrameGrabber();
+							}
+							catch(Exception e)
+							{
+								JOptionPane.showMessageDialog(null,
+								                              "Failed to open video: "+e.getLocalizedMessage(),
+								                              "Error", JOptionPane.ERROR_MESSAGE);
+							}
 						}
 					}
 				}
-				catch(IOException | InterruptedException e)
+				catch(IOException e)
 				{
 					e.printStackTrace();
 				}
