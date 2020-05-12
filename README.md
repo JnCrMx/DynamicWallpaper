@@ -22,7 +22,7 @@ For more information about problems on Linux see {{DON'T FORGET TO PUT A LINK HE
 
 ### Build from source
 
-To build the application from source make sure you have a JDK (at least 8) installed an properly set up.
+To build the application from source make sure you have a JDK (at least 8) installed and properly set up.
 It's all just about *Gradle* working well, so don't worry.
 
 Now, download the source from GitHub using ``git clone``
@@ -46,13 +46,13 @@ chmod +x gradlew
 
 ### Launching the application
 
-There are different ways to launch the application *Gralde* built in the previous step.
+There are different ways to launch the application *Gradle* has built in the previous step.
 
 #### Use a *shadowJar*
 
 You can find the *shadowJar* in ``build/libs/DynamicWallpaper-<version>-all.jar``.
 It already contains all required libraries.
-Simply copy it to any location and double-click it to launch.
+Simply copy it to any location you like and double-click it to launch.
 
 #### Use a distribution
 
@@ -60,9 +60,9 @@ Besides the *shadowJar* there are also distribution archives.
 Those also contain all libraries, but must be extracted before using the application.
 
 You can find them in ``build/distributions/DynamicWallpaper-1.0.zip`` or ``build/distributions/DynamicWallpaper-1.0.tar``.
-Just extract them to any directory.
+Just extract them to any directory you want.
 
-After extracting them just open the ``bin/``-directory and then
+After extracting them, just open the ``bin/``-directory and then
 execute ``DynamicWallpaper.bat`` (for Windows) or ``DynamicWallpaper`` (for Unix).
 
 #### Use *Gradle*
