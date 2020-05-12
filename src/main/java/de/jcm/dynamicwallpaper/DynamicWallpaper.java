@@ -174,7 +174,7 @@ public class DynamicWallpaper
 			try(BufferedReader reader = new BufferedReader(new FileReader(config)))
 			{
 				String line = IOUtils.toString(reader);
-				configObject = new JSONObject(line==null?"{}":line);
+				configObject = new JSONObject(line.isEmpty()?"{}":line);
 			}
 
 			video = configObject.optString("video", "video.mp4");
