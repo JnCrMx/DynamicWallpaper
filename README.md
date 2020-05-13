@@ -4,6 +4,10 @@
 as a wallpaper and settings up dynamic colors (e.g. based on 
 your open processes or windows).
 
+![Example GIF](img/example.gif)
+
+*Example of a color changing wave as wallpaper*
+
 ## Installation
 
 First of all make sure that your platform is supported (or just don't care and go experiment a bit :wink:).
