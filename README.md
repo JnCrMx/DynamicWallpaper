@@ -81,6 +81,20 @@ chmod +x gradlew
 If you use this way, you don't need to rebuild the program if the source changes.
 Building the program is included in this command. 
 
+## Usage
+
+After launching the application, just left-click the icon in your system tray
+to open the configuration window.
+
+Now you can configure your wallpaper.
+A good first step is to select a video file (or URL).
+More information about the color modes and different configurations will be provided soon,
+so for now you need to experiment a bit :smile:.
+
+Remember to click "Apply" to save and apply your configuration.
+Using "Exit" will also allow you to save the configuration;
+just don't terminate the application forcefully.
+
 ## Development
 
 ### How does it work?
