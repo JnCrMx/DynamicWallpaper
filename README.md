@@ -81,4 +81,57 @@ chmod +x gradlew
 ```
 
 If you use this way, you don't need to rebuild the program if the source changes.
-Building the program is included in this command.
+Building the program is included in this command. 
+
+## Development
+
+### How does it work?
+
+The basic idea is to put a window between your desktop background and the desktop
+symbols. In this window we can then do basically anything we want.
+
+On Windows there is a window called "WorkerW" which can be used as a parent for our window.
+
+![WorkerW](img/WorkerW.PNG)
+*Screenshot from [WinSpy](https://sourceforge.net/projects/winspyex/)
+with WorkerW and our frame highlighted*
+
+The whole procedure is from a very similar project
+I really recommend having a look at:
+https://github.com/Francesco149/weebp
+
+This program just replicates the steps in Java using [JNA](https://github.com/java-native-access/jna)
+to invoke the required native functions.
+
+For code and detailed information have a look at 
+[src/main/java/de/jcm/dynamicwallpaper/Utils.java](src/main/java/de/jcm/dynamicwallpaper/Utils.java).
+
+### Why doesn't it work well on Linux?
+
+I've experimented a bit on Linux and searched for ways to put a window
+as a wallpaper, but at least with KDE Plasma none of them really worked.
+
+This is because the desktop background and the desktop icons appear to be
+in the same windows. Hence, it seems to be impossible to put a window between
+them.
+
+We change the property ``_NET_WM_WINDOW_TYPE`` of our window to
+``_NET_WM_WINDOW_TYPE_DESKTOP`` which makes it appear as the desktop window.
+Sadly our window is still above the original desktop window and therefore
+covers all symbols and prevents you from interacting with your desktop.
+
+Making sure our window is below the desktop seems hard and wouldn't really help,
+because then the desktop window (which included the desktop background) would
+cover our window instead.
+
+I need to experiment a bit more;
+maybe setting a transparent wallpaper could fix this.
+
+### What's the problem on GNOME/Ubuntu?
+
+The application uses an icon in the system tray which you can click to open
+or close the configuration window.
+
+Ubuntu/GNOME does not support the system tray anymore.
+
+There might be some plugins providing a system tray, but I haven't tested them yet.
