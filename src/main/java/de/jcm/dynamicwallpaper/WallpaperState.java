@@ -4,5 +4,6 @@ public enum WallpaperState
 {
 	PLAYING,
 	PAUSED,
-	LOADING
+	LOADING,
+	ERROR
 }
