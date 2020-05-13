@@ -10,15 +10,13 @@ First of all make sure that your platform is supported (or just don't care and g
 
 ### Supported platforms
 
-|                 OS |            32-bit |              64-bit |
-|--------------------|-------------------|---------------------|
-|Windows 10          |:question:not tried|:heavy_check_mark:yes|
-|Linux (KDE Plasma)  |:question:not tried|  :warning:not really|
-|Linux (GNOME)       |:question:not tried|                :x:no|
+|                 OS |            32-bit |                                                 64-bit |
+|--------------------|-------------------|--------------------------------------------------------|
+|Windows 10          |:question:not tried|                                   :heavy_check_mark:yes|
+|Linux (KDE Plasma)  |:question:not tried|:warning:[not really](#why-doesnt-it-work-well-on-linux)|
+|Linux (GNOME)       |:question:not tried|              :x:[no](#whats-the-problem-on-gnomeubuntu)|
 
 *Note: It's not very likely that it will work on 32-bit systems if it doesn't work on 64-bit systems.*
-
-For more information about problems on Linux see {{DON'T FORGET TO PUT A LINK HERE!!!!!}}.
 
 ### Build from source
 
