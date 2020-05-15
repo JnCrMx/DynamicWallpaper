@@ -1,7 +1,7 @@
 package de.jcm.dynamicwallpaper;
 
-import de.jcm.dynamicwallpaper.colormode.*;
-import org.json.JSONObject;
+import de.jcm.dynamicwallpaper.colormode.ColorMode;
+import de.jcm.dynamicwallpaper.colormode.ColorModeConfigurationPanel;
 import org.lwjgl.glfw.GLFW;
 
 import javax.swing.*;
@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
+import java.nio.file.NoSuchFileException;
 import java.util.Enumeration;
 
 public class ControlFrame extends JFrame
@@ -33,7 +34,7 @@ public class ControlFrame extends JFrame
 	public ControlFrame(DynamicWallpaper wallpaper)
 	{
 		this.wallpaper = wallpaper;
-		this.colorMode = wallpaper.colorMode;
+		this.colorMode = wallpaper.getColorMode();
 
 		setTitle(BuildConfig.NAME+" version "+BuildConfig.VERSION);
 
@@ -45,14 +46,14 @@ public class ControlFrame extends JFrame
 			filePanel.setLayout(new BorderLayout());
 			{
 				filePathField = new JTextField(25);
-				filePathField.setText(wallpaper.video);
+				filePathField.setText(wallpaper.getVideo());
 				filePanel.add(filePathField, BorderLayout.CENTER);
 
 				JButton browseButton = new JButton("Browse");
 				browseButton.setToolTipText("Open dialog to select file");
 				browseButton.addActionListener(e->{
 					JFileChooser chooser = new JFileChooser();
-					chooser.setSelectedFile(new File(wallpaper.video));
+					chooser.setSelectedFile(new File(wallpaper.getVideo()));
 					FileFilter mp4Filter = new FileFilter()
 					{
 						@Override
@@ -84,30 +85,36 @@ public class ControlFrame extends JFrame
 				{
 					relativePathCheckBox = new JCheckBox("relative path");
 					relativePathCheckBox.setToolTipText("Store as relative path in config");
-					relativePathCheckBox.setSelected(wallpaper.relative);
+					relativePathCheckBox.setSelected(wallpaper.isRelativeVideoPath());
 					moreOptions.add(relativePathCheckBox);
 
+					moreOptions.add(Box.createHorizontalStrut(5));
 					moreOptions.add(Box.createHorizontalGlue());
+					moreOptions.add(Box.createHorizontalStrut(5));
 
 					JLabel startTimeLabel = new JLabel("start time");
 					moreOptions.add(startTimeLabel);
 
 					startTime = new JSpinner(
-							new SpinnerNumberModel(wallpaper.startTimestamp/1000000.0,
+							new SpinnerNumberModel(wallpaper.getVideoStartTimestamp()/1000000.0,
 							                       0.0, 10000.0, 1.0));
 					moreOptions.add(startTime);
 
 					JLabel startTimeUnitLabel = new JLabel(" s");
 					moreOptions.add(startTimeUnitLabel);
 
+					moreOptions.add(Box.createHorizontalStrut(5));
 					moreOptions.add(Box.createHorizontalGlue());
+					moreOptions.add(Box.createHorizontalStrut(5));
 
 					JLabel endTimeLabel = new JLabel("end time");
 					moreOptions.add(endTimeLabel);
 
 					endTime = new JSpinner(
-							new SpinnerNumberModel(wallpaper.endTimestamp/1000000.0,
-							                       0.0, 10000.0, 1.0));
+							new SpinnerNumberModel(wallpaper.getVideoEndTimestamp()<=0?
+									                       -1:
+									                       wallpaper.getVideoEndTimestamp()/1000000.0,
+							                       -1.0, 10000.0, 1.0));
 					moreOptions.add(endTime);
 
 					JLabel endTimeUnitLabel = new JLabel(" s");
@@ -125,23 +132,23 @@ public class ControlFrame extends JFrame
 				{
 					typeGroup = new ButtonGroup();
 
-					JRadioButton constantRadio = new JRadioButton("Constant Color");
-					constantRadio.getModel().setActionCommand(ConstantColorMode.class.getName());
-					constantRadio.addActionListener(e->selectColorType());
-					typePanel.add(constantRadio);
-					typeGroup.add(constantRadio);
+					for(Class<? extends ColorMode> modeClass : ColorMode.MODES)
+					{
+						try
+						{
+							ColorMode qInstance = modeClass.getConstructor().newInstance();
 
-					JRadioButton hueWaveRadio = new JRadioButton("Hue Wave");
-					hueWaveRadio.getModel().setActionCommand(HueWaveColorMode.class.getName());
-					hueWaveRadio.addActionListener(e->selectColorType());
-					typePanel.add(hueWaveRadio);
-					typeGroup.add(hueWaveRadio);
-
-					JRadioButton activityRadio = new JRadioButton("Activity Detection");
-					activityRadio.getModel().setActionCommand(ActivityColorMode.class.getName());
-					activityRadio.addActionListener(e->selectColorType());
-					typePanel.add(activityRadio);
-					typeGroup.add(activityRadio);
+							JRadioButton modeRadio = new JRadioButton(qInstance.getName());
+							modeRadio.getModel().setActionCommand(modeClass.getName());
+							modeRadio.addActionListener(e->selectColorType());
+							typePanel.add(modeRadio);
+							typeGroup.add(modeRadio);
+						}
+						catch(InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e)
+						{
+							e.printStackTrace();
+						}
+					}
 
 					Enumeration<AbstractButton> models = typeGroup.getElements();
 					while(models.hasMoreElements())
@@ -167,11 +174,35 @@ public class ControlFrame extends JFrame
 			controlButtonPanel.setBorder(new TitledBorder("Wallpaper Control"));
 			{
 				JButton apply = new JButton("Apply");
-				apply.addActionListener(e->update());
+				apply.addActionListener(e-> apply());
 				controlButtonPanel.add(apply);
 
+				JButton pausePlayButton = new JButton("Pause");
+				pausePlayButton.addActionListener(e->{
+					boolean pause = wallpaper.isPaused();
+					wallpaper.setPaused(!pause);
+
+					pause = wallpaper.isPaused();
+					pausePlayButton.setText(pause?"Play":"Pause");
+				});
+				controlButtonPanel.add(pausePlayButton);
+
 				JButton exit = new JButton("Exit");
-				exit.addActionListener(e-> GLFW.glfwSetWindowShouldClose(wallpaper.getWindow(), true));
+				exit.addActionListener(e->{
+					int option = JOptionPane.showConfirmDialog(this,
+					                                           "Save changes before exit?",
+					                                           "Confirm Exit",
+					                                           JOptionPane.YES_NO_CANCEL_OPTION);
+					if(option == JOptionPane.CANCEL_OPTION || option == JOptionPane.CLOSED_OPTION)
+					{
+						return;
+					}
+					if(option == JOptionPane.YES_OPTION)
+					{
+						save(false);
+					}
+					GLFW.glfwSetWindowShouldClose(wallpaper.getWindow(), true);
+				});
 				controlButtonPanel.add(exit);
 			}
 			contentPane.add(controlButtonPanel, BorderLayout.SOUTH);
@@ -187,22 +218,7 @@ public class ControlFrame extends JFrame
 		colorModePanel.removeAll();
 
 		String className = typeGroup.getSelection().getActionCommand();
-		if(wallpaper.colorMode.getClass().getName().equals(className))
-		{
-			colorMode = wallpaper.colorMode;
-		}
-		else
-		{
-			try
-			{
-				colorMode = (ColorMode) Class.forName(className).getConstructor().newInstance();
-				colorMode.load(new JSONObject());
-			}
-			catch(InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException | ClassNotFoundException e)
-			{
-				e.printStackTrace();
-			}
-		}
+		colorMode = wallpaper.computeColorMode(className);
 		modeConfigurationPanel = colorMode.createConfigurationPanel();
 		modeConfigurationPanel.load();
 		colorModePanel.add(modeConfigurationPanel, BorderLayout.CENTER);
@@ -213,23 +229,37 @@ public class ControlFrame extends JFrame
 		pack();
 	}
 
-	public void update()
+	public void apply()
+	{
+		save(true);
+	}
+
+	public void save(boolean apply)
 	{
 		if(!filePathField.getText().isEmpty())
 		{
 			String video = filePathField.getText();
 			if(DynamicWallpaper.linkPattern.matcher(video).matches())
 			{
-				if(!video.equals(wallpaper.video))
+				if(!video.equals(wallpaper.getVideo()))
 				{
-					wallpaper.video = video;
-					try
+					wallpaper.setVideo(video);
+					if(apply)
 					{
-						wallpaper.startFrameGrabber();
-					}
-					catch(IOException | InterruptedException e)
-					{
-						e.printStackTrace();
+						try
+						{
+							wallpaper.startFrameGrabber();
+						}
+						catch(IOException e)
+						{
+							JOptionPane.showMessageDialog(null,
+							                              "Failed to open video: "+e.getLocalizedMessage(),
+							                              "Error", JOptionPane.ERROR_MESSAGE);
+						}
+						catch(InterruptedException e)
+						{
+							e.printStackTrace();
+						}
 					}
 				}
 			}
@@ -240,32 +270,58 @@ public class ControlFrame extends JFrame
 				{
 					try
 					{
-						if(!Files.isSameFile(newFile.toPath(), new File(wallpaper.video).toPath()))
+						if(!Files.isSameFile(newFile.toPath(), new File(wallpaper.getVideo()).toPath()))
 						{
-							wallpaper.video = newFile.getPath();
-							wallpaper.startFrameGrabber();
+							wallpaper.setVideo(newFile.getPath());
+							if(apply)
+							{
+								try
+								{
+									wallpaper.startFrameGrabber();
+								}
+								catch(Exception e)
+								{
+									JOptionPane.showMessageDialog(null,
+									                              "Failed to open video: "+e.getLocalizedMessage(),
+									                              "Error", JOptionPane.ERROR_MESSAGE);
+								}
+							}
 						}
 					}
-					catch(InvalidPathException ignored)
+					catch(InvalidPathException | NoSuchFileException ignored)
 					{
-						wallpaper.video = newFile.getPath();
-						wallpaper.startFrameGrabber();
+						wallpaper.setVideo(newFile.getPath());
+						if(apply)
+						{
+							try
+							{
+								wallpaper.startFrameGrabber();
+							}
+							catch(Exception e)
+							{
+								JOptionPane.showMessageDialog(null,
+								                              "Failed to open video: "+e.getLocalizedMessage(),
+								                              "Error", JOptionPane.ERROR_MESSAGE);
+							}
+						}
 					}
 				}
-				catch(IOException | InterruptedException e)
+				catch(IOException e)
 				{
 					e.printStackTrace();
 				}
 			}
 		}
-		wallpaper.relative = relativePathCheckBox.isSelected();
+		wallpaper.setRelativeVideoPath(relativePathCheckBox.isSelected());
 
-		wallpaper.startTimestamp = (long) ((double)startTime.getValue()*1000000);
-		wallpaper.endTimestamp = (long) ((double)endTime.getValue()*1000000);
-		if(wallpaper.endTimestamp == 0)
-			wallpaper.endTimestamp = -1;
+		wallpaper.setVideoStartTimestamp((long) ((double)startTime.getValue()*1000000));
+		wallpaper.setVideoEndTimestamp((long) ((double)endTime.getValue()*1000000));
 
-		wallpaper.colorMode = colorMode;
 		modeConfigurationPanel.apply();
+		wallpaper.setColorMode(colorMode);
+
+		// if we are going to shutdown (-> confirm dialog), we don't need to save,
+		// but it's safer I guess, just in case we crash on shutdown
+		wallpaper.saveConfig();
 	}
 }

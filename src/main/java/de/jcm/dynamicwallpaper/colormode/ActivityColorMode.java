@@ -160,6 +160,12 @@ public class ActivityColorMode extends ColorMode
 		return new ActivityConfigurationPanel();
 	}
 
+	@Override
+	public String getName()
+	{
+		return "Activity Color";
+	}
+
 	public class ActivityConfigurationPanel extends ColorModeConfigurationPanel
 	{
 		public LinkedList<ActivityColorEntry> list;
@@ -247,6 +253,9 @@ public class ActivityColorMode extends ColorMode
 				removeButton.setEnabled(false);
 				removeButton.addActionListener(e->{
 					list.remove(table.getSelectedRow()-1);
+
+					table.setRowSelectionInterval(table.getSelectedRow()-1,
+					                              table.getSelectedRow()-1);
 
 					revalidate();
 					repaint();

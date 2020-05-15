@@ -1,15 +1,22 @@
 package de.jcm.dynamicwallpaper;
 
+import de.jcm.dynamicwallpaper.colormode.ActivityColorMode;
 import de.jcm.dynamicwallpaper.colormode.ColorMode;
 import de.jcm.dynamicwallpaper.colormode.ConstantColorMode;
+import de.jcm.dynamicwallpaper.colormode.HueWaveColorMode;
+import de.jcm.dynamicwallpaper.extra.ErrorScreen;
+import de.jcm.dynamicwallpaper.extra.LoadingScreen;
 import de.jcm.dynamicwallpaper.render.Mesh;
 import de.jcm.dynamicwallpaper.render.Shader;
 import de.jcm.dynamicwallpaper.render.ShaderProgram;
 import de.jcm.dynamicwallpaper.render.Texture;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.input.TeeInputStream;
 import org.bytedeco.ffmpeg.global.avutil;
 import org.bytedeco.javacv.FFmpegFrameGrabber;
 import org.bytedeco.javacv.Frame;
+import org.bytedeco.javacv.FrameGrabber;
+import org.json.JSONArray;
 import org.json.JSONObject;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.glfw.GLFWErrorCallback;
@@ -31,6 +38,7 @@ import java.nio.IntBuffer;
 import java.nio.ShortBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -49,6 +57,13 @@ import static org.lwjgl.system.MemoryUtil.NULL;
 
 public class DynamicWallpaper
 {
+	static
+	{
+		ColorMode.MODES.add(ConstantColorMode.class);
+		ColorMode.MODES.add(HueWaveColorMode.class);
+		ColorMode.MODES.add(ActivityColorMode.class);
+	}
+
 	public static final Pattern linkPattern = Pattern.compile("(http(s|)*://|www\\.)\\S*");
 
 	// The window handle
@@ -70,24 +85,33 @@ public class DynamicWallpaper
 
 	private ControlFrame controlFrame;
 
-	ColorMode colorMode;
-	final AtomicReference<FFmpegFrameGrabber> frameGrabber = new AtomicReference<>();
+	private ColorMode colorMode;
+	private final HashMap<String, JSONObject> configurations = new HashMap<>();
 
-	String video;
+	private final AtomicReference<FFmpegFrameGrabber> frameGrabber = new AtomicReference<>();
+	private final AtomicReference<WallpaperState> state = new AtomicReference<>(WallpaperState.LOADING);
+
+	private LoadingScreen loadingScreen;
+	private ErrorScreen errorScreen;
+
+	private String video;
 	// whether to store the video as a relative path (if possible)
-	boolean relative;
+	private boolean relative;
+
+	private boolean hasCache;
+	private boolean isFileInput;
+
+	private double fps = 30.0;
 
 	// timestamp (in microseconds) to seek to at beginning or video restart
-	long startTimestamp = 0;
+	private long startTimestamp = 0;
 	// timestamp (in microseconds) to trigger video restart when reached, -1 to disable
-	long endTimestamp = -1;
+	private long endTimestamp = -1;
 
 	private final ScheduledExecutorService executor = Executors.newSingleThreadScheduledExecutor();
 
 	public void run()
 	{
-		Runtime.getRuntime().addShutdownHook(new Thread(this::shutdown));
-
 		loadConfig();
 		executor.scheduleAtFixedRate(()->{
 			if(colorMode != null)
@@ -103,12 +127,13 @@ public class DynamicWallpaper
 			e.printStackTrace();
 		}
 
-		ImageIcon icon = new ImageIcon(getClass().getResource("/icon.png"));
+		ImageIcon icon = new ImageIcon(getClass().getResource("/images/icon.png"));
 		controlFrame = new ControlFrame(this);
 		controlFrame.setIconImage(icon.getImage());
 
 		SystemTray tray = SystemTray.getSystemTray();
 		TrayIcon trayIcon = new TrayIcon(icon.getImage());
+		trayIcon.setImageAutoSize(true);
 		trayIcon.addMouseListener(new MouseAdapter()
 		{
 			@Override
@@ -126,15 +151,23 @@ public class DynamicWallpaper
 			e.printStackTrace();
 		}
 
+		loadingScreen = new LoadingScreen();
+		errorScreen = new ErrorScreen();
+
 		avutil.av_log_set_level(avutil.AV_LOG_ERROR);
+		Thread loadVideo = new Thread(()->{
 		try
 		{
+			if(new File("cache.mp4").exists())
+				hasCache = true;
+
 			startFrameGrabber();
 		}
 		catch(IOException | InterruptedException e)
 		{
 			e.printStackTrace();
-		}
+		}});
+		loadVideo.start();
 
 		init();
 		loop();
@@ -154,7 +187,7 @@ public class DynamicWallpaper
 			try(BufferedReader reader = new BufferedReader(new FileReader(config)))
 			{
 				String line = IOUtils.toString(reader);
-				configObject = new JSONObject(line==null?"{}":line);
+				configObject = new JSONObject(line.isEmpty()?"{}":line);
 			}
 
 			video = configObject.optString("video", "video.mp4");
@@ -172,13 +205,24 @@ public class DynamicWallpaper
 				endTimestamp = videoConfig.optLong("endTimestamp", -1);
 			}
 
+			JSONArray configs = configObject.optJSONArray("modeConfigs");
+			if(configs != null)
+			{
+				for(int i = 0; i < configs.length(); i++)
+				{
+					JSONObject obj = configs.getJSONObject(i);
+					String name = obj.getString("mode");
+					JSONObject cfg = obj.getJSONObject("config");
+
+					configurations.put(name, cfg);
+				}
+			}
+
 			String colorMode = configObject.optString("mode", ConstantColorMode.class.getName());
 			try
 			{
 				this.colorMode = (ColorMode) Class.forName(colorMode).getConstructor().newInstance();
-
-				JSONObject modeConfig = configObject.optJSONObject("config");
-				this.colorMode.load(modeConfig==null?new JSONObject():modeConfig);
+				this.colorMode.load(configurations.computeIfAbsent(this.colorMode.getClass().getName(), k->new JSONObject()));
 			}
 			catch(InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException | ClassNotFoundException e)
 			{
@@ -191,7 +235,7 @@ public class DynamicWallpaper
 		}
 	}
 
-	private void saveConfig()
+	void saveConfig()
 	{
 		JSONObject object = new JSONObject();
 
@@ -219,18 +263,26 @@ public class DynamicWallpaper
 		JSONObject videoConfig = new JSONObject();
 		videoConfig.put("startTimestamp", startTimestamp);
 		videoConfig.put("endTimestamp", endTimestamp);
+		if(hasCache)
+			videoConfig.put("cachedVideo", video);
 		object.put("videoConfig", videoConfig);
 
 		object.put("mode", colorMode.getClass().getName());
+		configurations.forEach((mode, cfg)-> {
+			if(colorMode.getClass().getName().equals(mode))
+				colorMode.save(configurations.compute(mode, (k,v)->new JSONObject()));
 
-		JSONObject modeConfig = new JSONObject();
-		colorMode.save(modeConfig);
-		object.put("config", modeConfig);
+			JSONObject o2 = new JSONObject();
+			o2.put("mode", mode);
+			o2.put("config", cfg);
+			object.append("modeConfigs", o2);
+		});
 
 		File config = new File("config.json");
 		try(BufferedWriter writer = new BufferedWriter(new FileWriter(config)))
 		{
-			writer.write(object.toString(4));
+			object.write(writer, 4, 0);
+			writer.write('\n');
 		}
 		catch(IOException e)
 		{
@@ -253,7 +305,25 @@ public class DynamicWallpaper
 		glfwTerminate();
 		glfwSetErrorCallback(null).free();
 
+		try
+		{
+			frameGrabber.get().close();
+		}
+		catch(FrameGrabber.Exception e)
+		{
+			e.printStackTrace();
+		}
+
 		saveConfig();
+
+		File cache = new File("cache.mp4");
+		if(!hasCache && cache.exists())
+		{
+			if(!cache.delete()) // delete cache if it's incomplete
+			{
+				System.out.println("Could not delete incomplete cache. Please do this manually.");
+			}
+		}
 
 		Runtime.getRuntime().halt(0);
 	}
@@ -303,8 +373,8 @@ public class DynamicWallpaper
 
 		// Make the OpenGL context current
 		glfwMakeContextCurrent(window);
-		// Enable v-sync
-		glfwSwapInterval(1);
+		// Disable v-sync
+		glfwSwapInterval(0);
 
 		String defaultDeviceName = alcGetString(0, ALC_DEFAULT_DEVICE_SPECIFIER);
 		alDevice = alcOpenDevice(defaultDeviceName);
@@ -328,26 +398,64 @@ public class DynamicWallpaper
 
 	public void startFrameGrabber() throws IOException, InterruptedException
 	{
-		FFmpegFrameGrabber grabber = new FFmpegFrameGrabber(openVideoStream());
-		grabber.setFormat("mp4");
-		grabber.start();
-		grabber.setTimestamp(startTimestamp);
-
-		if(frameGrabber.get() != null)
+		if(frameGrabber.get()!=null)
 		{
+			fps = 30.0;
+			state.set(WallpaperState.LOADING);
 			frameGrabber.get().close();
 		}
-		frameGrabber.set(grabber);
+
+		try
+		{
+			FFmpegFrameGrabber grabber;
+
+			Object o = openVideoStream();
+			if(o instanceof InputStream)
+			{
+				grabber = new FFmpegFrameGrabber((InputStream) o, 0);
+				grabber.setFormat("mp4");
+				grabber.start(false);
+				isFileInput = false;
+			}
+			else if(o instanceof File)
+			{
+				grabber = new FFmpegFrameGrabber((File) o);
+				grabber.start();
+				isFileInput = true;
+			}
+			else
+			{
+				throw new RuntimeException("cannot open video stream");
+			}
+			grabber.setTimestamp(startTimestamp);
+
+			fps = grabber.getVideoFrameRate();
+
+			frameGrabber.set(grabber);
+			state.set(WallpaperState.PLAYING);
+		}
+		catch(Exception e)
+		{
+			state.set(WallpaperState.ERROR);
+
+			throw e;
+		}
 	}
 
-	public InputStream openVideoStream() throws IOException, InterruptedException
+	public Object openVideoStream() throws IOException, InterruptedException
 	{
 		if(linkPattern.matcher(video).matches())
 		{
+			if(hasCache)
+			{
+				System.out.println("Using cached video for "+video);
+				return new File("cache.mp4");
+			}
+
 			if(video.endsWith(".mp4"))
 			{
 				URL url = new URL(video);
-				return Utils.openURLStream(url);
+				return createCacheStream(Utils.openURLStream(url));
 			}
 			else
 			{
@@ -358,8 +466,9 @@ public class DynamicWallpaper
 				int code;
 				if((code = process.waitFor())==0)
 				{
-					String url = IOUtils.toString(process.getInputStream(), StandardCharsets.UTF_8);
-					return Utils.openURLStream(new URL(url));
+					String urlString = IOUtils.toString(process.getInputStream(), StandardCharsets.UTF_8);
+					URL url = new URL(urlString);
+					return createCacheStream(Utils.openURLStream(url));
 				}
 				else
 				{
@@ -369,16 +478,30 @@ public class DynamicWallpaper
 		}
 		else
 		{
-			return new FileInputStream(video);
+			return new File(video);
 		}
+	}
+
+	private TeeInputStream createCacheStream(InputStream in) throws FileNotFoundException
+	{
+		return new TeeInputStream(in, new FileOutputStream("cache.mp4")
+		{
+			@Override
+			public void close() throws IOException
+			{
+				super.close();
+				hasCache = true;
+				System.out.println("Finished caching video!");
+			}
+		}, true);
 	}
 
 	private void prepare()
 	{
 		try
 		{
-			Shader vertexShader = Shader.loadShader(GL_VERTEX_SHADER, "/plane.vs");
-			Shader fragmentShader = Shader.loadShader(GL_FRAGMENT_SHADER, "/video.fs");
+			Shader vertexShader = Shader.loadShader(GL_VERTEX_SHADER, "/shaders/plane.vsh");
+			Shader fragmentShader = Shader.loadShader(GL_FRAGMENT_SHADER, "/shaders/video.fsh");
 
 			program = new ShaderProgram();
 			program.attachShader(vertexShader);
@@ -415,6 +538,9 @@ public class DynamicWallpaper
 				cube = new Mesh();
 				cube.fill(vertices, textures, elements, program);
 			}
+
+			loadingScreen.prepare();
+			errorScreen.prepare();
 		}
 		catch(IOException e)
 		{
@@ -438,10 +564,12 @@ public class DynamicWallpaper
 		// bindings available for use.
 		GL.createCapabilities();
 
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glEnable(GL_BLEND);
+		glEnable(GL_TEXTURE_2D);
+
 		ALCCapabilities alcCapabilities = ALC.createCapabilities(alDevice);
 		ALCapabilities alCapabilities = AL.createCapabilities(alcCapabilities);
-
-		glEnable(GL_TEXTURE_2D);
 
 		texture = new Texture();
 		texture.bind();
@@ -459,37 +587,81 @@ public class DynamicWallpaper
 		// the window or has pressed the ESCAPE key.
 		while(!glfwWindowShouldClose(window))
 		{
+			long frameStart = System.currentTimeMillis();
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); // clear the framebuffer
 
+			WallpaperState state = this.state.get();
+			if(state == WallpaperState.PLAYING)
+			{
+				updateTexture();
+			}
 			render();
+			if(state == WallpaperState.LOADING)
+			{
+				loadingScreen.render();
+			}
+			if(state == WallpaperState.ERROR)
+			{
+				errorScreen.render();
+			}
 
 			glfwSwapBuffers(window); // swap the color buffers
 
 			// Poll for window events. The key callback above will only be
 			// invoked during this call.
 			glfwPollEvents();
+
+			long frameEnd = System.currentTimeMillis();
+			long frameTime = frameEnd - frameStart;
+			long sleepTime = (long) (1000 / fps - frameTime);
+			if(sleepTime < 0)
+			{
+				System.out.printf("Cannot sync at %.02f FPS. Running %d ms behind.\n",
+				                  fps, -sleepTime);
+			}
+			else
+			{
+				try
+				{
+					Thread.sleep(sleepTime);
+				}
+				catch(InterruptedException e)
+				{
+					e.printStackTrace();
+				}
+			}
 		}
 	}
 
-	void render()
+	void updateTexture()
 	{
 		texture.bind();
 
-		Frame frame = null;
-		do
+		try
 		{
-			try
+			if(endTimestamp > 0 && frameGrabber.get().getTimestamp() >= endTimestamp)
 			{
-				if(endTimestamp > 0 && frameGrabber.get().getTimestamp() >= endTimestamp)
-				{
-					frameGrabber.get().setTimestamp(startTimestamp);
-				}
-				frame = frameGrabber.get().grabFrame();
+				frameGrabber.get().setTimestamp(startTimestamp);
+			}
 
+			Frame frame = null;
+			do
+			{
+				frame = frameGrabber.get().grabFrame();
 				if(frame == null)
 				{
-					frameGrabber.get().setTimestamp(startTimestamp);
-					continue;
+					if(isFileInput)
+					{
+						frameGrabber.get().setTimestamp(startTimestamp);
+					}
+					else
+					{
+						startFrameGrabber();
+					}
+
+					frame = frameGrabber.get().grabImage();
+					if(frame == null)
+						return;
 				}
 
 				if(frame.getTypes().contains(Frame.Type.VIDEO))
@@ -508,12 +680,17 @@ public class DynamicWallpaper
 						alSourcePlay(audioSource);
 				}
 			}
-			catch(Throwable t)
-			{
-				t.printStackTrace();
-			}
+			while(!frame.getTypes().contains(Frame.Type.VIDEO));
 		}
-		while(frame == null || !frame.getTypes().contains(Frame.Type.VIDEO));
+		catch(Throwable t)
+		{
+			t.printStackTrace();
+		}
+	}
+
+	void render()
+	{
+		texture.bind();
 
 		cube.bind();
 		program.use();
@@ -521,6 +698,101 @@ public class DynamicWallpaper
 		program.setUniform(colorFilter, colorMode.getColor());
 
 		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+	}
+
+	public ColorMode getColorMode()
+	{
+		return colorMode;
+	}
+
+	public String getVideo()
+	{
+		return video;
+	}
+
+	public long getVideoStartTimestamp()
+	{
+		return startTimestamp;
+	}
+
+	public long getVideoEndTimestamp()
+	{
+		return endTimestamp;
+	}
+
+	public boolean isRelativeVideoPath()
+	{
+		return relative;
+	}
+
+	public ColorMode computeColorMode(String className)
+	{
+		if(colorMode.getClass().getName().equals(className))
+		{
+			return colorMode;
+		}
+		else
+		{
+			try
+			{
+				ColorMode colorMode = (ColorMode) Class.forName(className).getConstructor().newInstance();
+				colorMode.load(configurations.computeIfAbsent(className, k->new JSONObject()));
+				return colorMode;
+			}
+			catch(InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException | ClassNotFoundException e)
+			{
+				e.printStackTrace();
+			}
+			return null;
+		}
+	}
+
+	public void setVideo(String video)
+	{
+		this.video = video;
+		hasCache = false;
+	}
+
+	public void setRelativeVideoPath(boolean relative)
+	{
+		this.relative = relative;
+	}
+
+	public void setVideoStartTimestamp(long startTimestamp)
+	{
+		this.startTimestamp = startTimestamp;
+		if(this.startTimestamp < 0)
+			this.startTimestamp = 0;
+	}
+
+	public void setVideoEndTimestamp(long endTimestamp)
+	{
+		if(endTimestamp > this.endTimestamp)
+			hasCache = false;   // We need to download the part of the video we skipped before
+
+		this.endTimestamp = endTimestamp;
+		if(this.endTimestamp <= 0)
+			this.endTimestamp = -1;
+	}
+
+	public void setColorMode(ColorMode colorMode)
+	{
+		this.colorMode.save(configurations.compute(this.colorMode.getClass().getName(), (k,v)->new JSONObject()));
+		this.colorMode = colorMode;
+		this.colorMode.save(configurations.compute(this.colorMode.getClass().getName(), (k,v)->new JSONObject()));
+	}
+
+	public void setPaused(boolean paused)
+	{
+		if(state.get() == WallpaperState.LOADING)
+			return;
+
+		state.set(paused?WallpaperState.PAUSED:WallpaperState.PLAYING);
+	}
+
+	public boolean isPaused()
+	{
+		return state.get() == WallpaperState.PAUSED;
 	}
 
 	public static void main(String[] args)
