@@ -593,7 +593,7 @@ public class DynamicWallpaper
 			WallpaperState state = this.state.get();
 			if(state == WallpaperState.PLAYING)
 			{
-				updateTexture();
+				grabFrames();
 			}
 			render();
 			if(state == WallpaperState.LOADING)
@@ -633,7 +633,7 @@ public class DynamicWallpaper
 		}
 	}
 
-	void updateTexture()
+	void grabFrames()
 	{
 		texture.bind();
 
@@ -678,6 +678,10 @@ public class DynamicWallpaper
 
 					if(alGetSourcei(audioSource, AL_SOURCE_STATE)!=AL_PLAYING)
 						alSourcePlay(audioSource);
+
+					int queuedBuffers = alGetSourcei(audioSource, AL_BUFFERS_QUEUED);
+					int processedBuffer = alGetSourcei(audioSource, AL_BUFFERS_PROCESSED);
+					System.out.println(queuedBuffers-processedBuffer);
 				}
 			}
 			while(!frame.getTypes().contains(Frame.Type.VIDEO));
