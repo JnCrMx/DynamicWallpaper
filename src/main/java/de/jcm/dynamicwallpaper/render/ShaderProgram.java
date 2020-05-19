@@ -184,6 +184,11 @@ public class ShaderProgram
 		}
 	}
 
+	public void setUniform(int location, float value)
+	{
+		glUniform1f(location, value);
+	}
+
 	/**
 	 * Use this shader program.
 	 */
