@@ -294,7 +294,8 @@ public class DynamicWallpaper
 
 		try
 		{
-			frameGrabber.get().close();
+			if(frameGrabber.get() != null)
+				frameGrabber.get().close();
 		}
 		catch(FrameGrabber.Exception e)
 		{
