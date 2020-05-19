@@ -4,6 +4,7 @@ import de.jcm.dynamicwallpaper.colormode.ActivityColorMode;
 import de.jcm.dynamicwallpaper.colormode.ColorMode;
 import de.jcm.dynamicwallpaper.colormode.ConstantColorMode;
 import de.jcm.dynamicwallpaper.colormode.HueWaveColorMode;
+import de.jcm.dynamicwallpaper.extra.DiscordOverlay;
 import de.jcm.dynamicwallpaper.extra.ErrorScreen;
 import de.jcm.dynamicwallpaper.extra.LoadingScreen;
 import de.jcm.dynamicwallpaper.render.Mesh;
@@ -83,6 +84,7 @@ public class DynamicWallpaper
 
 	private LoadingScreen loadingScreen;
 	private ErrorScreen errorScreen;
+	private DiscordOverlay discordOverlay;
 
 	private String video;
 	// whether to store the video as a relative path (if possible)
@@ -143,6 +145,7 @@ public class DynamicWallpaper
 
 		loadingScreen = new LoadingScreen();
 		errorScreen = new ErrorScreen();
+		discordOverlay = new DiscordOverlay();
 
 		avutil.av_log_set_level(avutil.AV_LOG_ERROR);
 		Thread loadVideo = new Thread(()->{
@@ -512,6 +515,7 @@ public class DynamicWallpaper
 
 			loadingScreen.prepare();
 			errorScreen.prepare();
+			discordOverlay.prepare();
 		}
 		catch(IOException e)
 		{
@@ -565,6 +569,7 @@ public class DynamicWallpaper
 			{
 				errorScreen.render();
 			}
+			discordOverlay.render();
 
 			glfwSwapBuffers(window); // swap the color buffers
 
