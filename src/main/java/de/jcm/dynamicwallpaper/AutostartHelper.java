@@ -11,7 +11,7 @@ import java.io.IOException;
 
 public class AutostartHelper
 {
-	public static final String LINK_NAME = DynamicWallpaper.class.getSimpleName()+".lnk";
+	public static final String LINK_NAME = BuildConfig.NAME+".lnk";
 
 	public static boolean hasAutostart()
 	{
