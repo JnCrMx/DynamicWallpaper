@@ -7,6 +7,7 @@ import de.jcm.dynamicwallpaper.colormode.HueWaveColorMode;
 import de.jcm.dynamicwallpaper.extra.DiscordOverlay;
 import de.jcm.dynamicwallpaper.extra.ErrorScreen;
 import de.jcm.dynamicwallpaper.extra.LoadingScreen;
+import de.jcm.dynamicwallpaper.extra.Overlay;
 import de.jcm.dynamicwallpaper.render.Mesh;
 import de.jcm.dynamicwallpaper.render.Shader;
 import de.jcm.dynamicwallpaper.render.ShaderProgram;
@@ -36,12 +37,15 @@ import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Objects;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import static org.lwjgl.glfw.Callbacks.glfwFreeCallbacks;
 import static org.lwjgl.glfw.GLFW.*;
@@ -58,6 +62,10 @@ public class DynamicWallpaper
 		ColorMode.MODES.add(ConstantColorMode.class);
 		ColorMode.MODES.add(HueWaveColorMode.class);
 		ColorMode.MODES.add(ActivityColorMode.class);
+	}
+	static
+	{
+		Overlay.OVERLAYS.add(DiscordOverlay.class);
 	}
 
 	public static final Pattern linkPattern = Pattern.compile("(http(s|)*://|www\\.)\\S*");
@@ -78,13 +86,14 @@ public class DynamicWallpaper
 
 	private ColorMode colorMode;
 	private final HashMap<String, JSONObject> configurations = new HashMap<>();
+	private String[] overlayCache;
 
 	private final AtomicReference<FFmpegFrameGrabber> frameGrabber = new AtomicReference<>();
 	private final AtomicReference<WallpaperState> state = new AtomicReference<>(WallpaperState.LOADING);
 
 	private LoadingScreen loadingScreen;
 	private ErrorScreen errorScreen;
-	private DiscordOverlay discordOverlay;
+	private Overlay[] overlays;
 
 	private String video;
 	// whether to store the video as a relative path (if possible)
@@ -145,7 +154,6 @@ public class DynamicWallpaper
 
 		loadingScreen = new LoadingScreen();
 		errorScreen = new ErrorScreen();
-		discordOverlay = new DiscordOverlay();
 
 		avutil.av_log_set_level(avutil.AV_LOG_ERROR);
 		Thread loadVideo = new Thread(()->{
@@ -221,6 +229,43 @@ public class DynamicWallpaper
 			{
 				e.printStackTrace();
 			}
+
+			JSONArray overlays = configObject.optJSONArray("overlays");
+			if(overlays != null)
+			{
+				this.overlays = overlays.toList().stream()
+						.map(Object::toString)
+						.map(s ->
+						     {
+							     try
+							     {
+								     return Class.forName(s);
+							     }
+							     catch(ClassNotFoundException e)
+							     {
+								     e.printStackTrace();
+								     return null;
+							     }
+						     })
+						.filter(Objects::nonNull)
+						.filter(Overlay.class::isAssignableFrom)
+						.map(c->{
+							try
+							{
+								return (Overlay) c.getConstructor().newInstance();
+							}
+							catch(Exception e)
+							{
+								e.printStackTrace();
+								return null;
+							}})
+						.filter(Objects::nonNull)
+						.toArray(Overlay[]::new);
+			}
+			else
+			{
+				this.overlays = new Overlay[0];
+			}
 		}
 		catch(IOException e)
 		{
@@ -270,6 +315,8 @@ public class DynamicWallpaper
 			o2.put("config", cfg);
 			object.append("modeConfigs", o2);
 		});
+
+		object.put("overlays", Arrays.asList(getOverlayCache()));
 
 		File config = new File("config.json");
 		try(BufferedWriter writer = new BufferedWriter(new FileWriter(config)))
@@ -516,7 +563,11 @@ public class DynamicWallpaper
 
 			loadingScreen.prepare();
 			errorScreen.prepare();
-			discordOverlay.prepare();
+
+			for(Overlay overlay : overlays)
+			{
+				overlay.prepare();
+			}
 		}
 		catch(IOException e)
 		{
@@ -562,6 +613,10 @@ public class DynamicWallpaper
 				updateTexture();
 			}
 			render();
+			for(Overlay overlay : overlays)
+			{
+				overlay.render();
+			}
 			if(state == WallpaperState.LOADING)
 			{
 				loadingScreen.render();
@@ -570,7 +625,6 @@ public class DynamicWallpaper
 			{
 				errorScreen.render();
 			}
-			discordOverlay.render();
 
 			glfwSwapBuffers(window); // swap the color buffers
 
@@ -746,5 +800,18 @@ public class DynamicWallpaper
 	public static void main(String[] args)
 	{
 		new DynamicWallpaper().run();
+	}
+
+	public void setOverlayCache(String[] overlayCache)
+	{
+		this.overlayCache = overlayCache;
+	}
+
+	public String[] getOverlayCache()
+	{
+		if(overlayCache != null)
+			return overlayCache;
+		else
+			return Stream.of(overlays).map(Overlay::getClass).map(Class::getName).toArray(String[]::new);
 	}
 }

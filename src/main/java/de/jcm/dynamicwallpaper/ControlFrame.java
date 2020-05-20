@@ -32,6 +32,8 @@ public class ControlFrame extends JFrame
 	private ColorMode colorMode;
 	private ColorModeConfigurationPanel modeConfigurationPanel;
 
+	public String[] overlayCache;
+
 	public ControlFrame(DynamicWallpaper wallpaper)
 	{
 		this.wallpaper = wallpaper;
@@ -190,7 +192,7 @@ public class ControlFrame extends JFrame
 
 				JButton extra = new JButton("Extra options");
 				extra.addActionListener(e->{
-					ExtraOptionDialog dialog = new ExtraOptionDialog(this);
+					ExtraOptionDialog dialog = new ExtraOptionDialog(this, wallpaper);
 					dialog.setVisible(true);
 				});
 				controlButtonPanel.add(extra);
@@ -327,6 +329,18 @@ public class ControlFrame extends JFrame
 
 		modeConfigurationPanel.apply();
 		wallpaper.setColorMode(colorMode);
+
+		if(overlayCache != null)
+		{
+			wallpaper.setOverlayCache(overlayCache);
+			if(apply)
+			{
+				JOptionPane.showMessageDialog(this, "You enabled or disabled an Overlay. " +
+						                              "In order for this to take effect, " +
+						                              "you need to restart the program.",
+				                              "Restart required", JOptionPane.WARNING_MESSAGE);
+			}
+		}
 
 		// if we are going to shutdown (-> confirm dialog), we don't need to save,
 		// but it's safer I guess, just in case we crash on shutdown

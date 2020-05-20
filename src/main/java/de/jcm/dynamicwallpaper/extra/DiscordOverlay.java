@@ -34,18 +34,16 @@ import static org.lwjgl.opengl.GL11.*;
 import static org.lwjgl.opengl.GL20.GL_FRAGMENT_SHADER;
 import static org.lwjgl.opengl.GL20.GL_VERTEX_SHADER;
 
-public class DiscordOverlay extends DiscordEventAdapter
+public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 {
 	private static final float ROTATION_SPEECH = 0.5f;
 
-	private final Core core;
+	private Core core;
 
 	private Mesh avatar;
 	private ShaderProgram program;
 
 	private int modelMatrixUniform;
-
-	private final Matrix4f projectionMatirx;
 
 	public static File downloadDiscordLibrary() throws IOException
 	{
@@ -107,24 +105,7 @@ public class DiscordOverlay extends DiscordEventAdapter
 
 	public DiscordOverlay()
 	{
-		try
-		{
-			Core.init(downloadDiscordLibrary());
-		}
-		catch(IOException e)
-		{
-			e.printStackTrace();
-		}
-		CreateParams params = new CreateParams();
-		params.registerEventHandler(this);
-		core = new Core(params);
 
-		Executors.newSingleThreadScheduledExecutor()
-				.scheduleAtFixedRate(core::runCallbacks, 0,
-				                     16, TimeUnit.MILLISECONDS);
-
-		// too lazy to do something weird with perspective and stuff, so just use scale
-		projectionMatirx = new Matrix4f().scale(1f/16, 1f/9f, 1f);
 	}
 
 	private final Queue<Triple<Long, ImageDimensions, byte[]>> images = new ArrayDeque<>();
@@ -193,6 +174,24 @@ public class DiscordOverlay extends DiscordEventAdapter
 
 	public void prepare() throws IOException
 	{
+		// Init Discord API
+		try
+		{
+			Core.init(downloadDiscordLibrary());
+		}
+		catch(IOException e)
+		{
+			e.printStackTrace();
+		}
+		CreateParams params = new CreateParams();
+		params.registerEventHandler(this);
+		core = new Core(params);
+
+		Executors.newSingleThreadScheduledExecutor()
+				.scheduleAtFixedRate(core::runCallbacks, 0,
+				                     16, TimeUnit.MILLISECONDS);
+
+		// Init OpenGL stuff
 		Shader vertexShader = Shader.loadShader(GL_VERTEX_SHADER, "/shaders/loading.vsh");
 		Shader fragmentShader = Shader.loadShader(GL_FRAGMENT_SHADER, "/shaders/loading.fsh");
 
@@ -206,6 +205,8 @@ public class DiscordOverlay extends DiscordEventAdapter
 		modelMatrixUniform = program.getUniformLocation("modelMatrix");
 		int projectionMatrixUniform = program.getUniformLocation("projectionMatrix");
 
+		// too lazy to do something weird with perspective and stuff, so just use scale
+		Matrix4f projectionMatirx = new Matrix4f().scale(1f / 16, 1f / 9f, 1f);
 		program.setUniform(projectionMatrixUniform, projectionMatirx);
 
 		try(MemoryStack stack = MemoryStack.stackPush())
@@ -291,5 +292,11 @@ public class DiscordOverlay extends DiscordEventAdapter
 				glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 			}
 		}
+	}
+
+	@Override
+	public String getName()
+	{
+		return "Discord Friends Overlay";
 	}
 }
