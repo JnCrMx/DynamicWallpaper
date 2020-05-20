@@ -70,10 +70,7 @@ public class AutostartHelper
 
 	public static String getCommand()
 	{
-		File myPath = new File(".").getAbsoluteFile();
-
-		return Kernel32Processenv.INSTANCE.GetCommandLineA().getValue()+
-				" \""+myPath.getAbsolutePath()+"\"";
+		return Kernel32Processenv.INSTANCE.GetCommandLineA().getValue();
 	}
 
 	public static String getJavaExecutable()
