@@ -193,7 +193,7 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 
 		// Init OpenGL stuff
 		Shader vertexShader = Shader.loadShader(GL_VERTEX_SHADER, "/shaders/loading.vsh");
-		Shader fragmentShader = Shader.loadShader(GL_FRAGMENT_SHADER, "/shaders/loading.fsh");
+		Shader fragmentShader = Shader.loadShader(GL_FRAGMENT_SHADER, "/shaders/avatar.fsh");
 
 		program = new ShaderProgram();
 		program.attachShader(vertexShader);
