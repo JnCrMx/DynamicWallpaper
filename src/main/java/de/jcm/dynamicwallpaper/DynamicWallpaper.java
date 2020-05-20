@@ -168,7 +168,7 @@ public class DynamicWallpaper
 	{
 		try
 		{
-			File config = new File("config.json").getAbsoluteFile();
+			File config = new File("config.json");
 			if(!config.exists())
 			{
 				config.createNewFile();
@@ -268,7 +268,7 @@ public class DynamicWallpaper
 			object.append("modeConfigs", o2);
 		});
 
-		File config = new File("config.json").getAbsoluteFile();
+		File config = new File("config.json");
 		try(BufferedWriter writer = new BufferedWriter(new FileWriter(config)))
 		{
 			object.write(writer, 4, 0);
@@ -450,7 +450,7 @@ public class DynamicWallpaper
 		}
 		else
 		{
-			return new File(video).getAbsoluteFile();
+			return new File(video);
 		}
 	}
 
@@ -740,8 +740,6 @@ public class DynamicWallpaper
 
 	public static void main(String[] args)
 	{
-		if(args.length == 1)
-			System.setProperty("user.dir", args[0]);
 		new DynamicWallpaper().run();
 	}
 }

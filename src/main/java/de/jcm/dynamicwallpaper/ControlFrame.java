@@ -2,7 +2,6 @@ package de.jcm.dynamicwallpaper;
 
 import de.jcm.dynamicwallpaper.colormode.ColorMode;
 import de.jcm.dynamicwallpaper.colormode.ColorModeConfigurationPanel;
-import de.jcm.dynamicwallpaper.extra.ExtraOptionDialog;
 import org.lwjgl.glfw.GLFW;
 
 import javax.swing.*;
@@ -187,13 +186,6 @@ public class ControlFrame extends JFrame
 					pausePlayButton.setText(pause?"Play":"Pause");
 				});
 				controlButtonPanel.add(pausePlayButton);
-
-				JButton extra = new JButton("Extra options");
-				extra.addActionListener(e->{
-					ExtraOptionDialog dialog = new ExtraOptionDialog(this);
-					dialog.setVisible(true);
-				});
-				controlButtonPanel.add(extra);
 
 				JButton exit = new JButton("Exit");
 				exit.addActionListener(e->{
