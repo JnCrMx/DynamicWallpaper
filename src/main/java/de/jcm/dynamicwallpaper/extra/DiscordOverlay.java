@@ -118,7 +118,7 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 	{
 		core.relationshipManager()
 				.filter(RelationshipManager.FRIEND_FILTER
-						        .and(RelationshipManager.ONLINE_FILTER));
+						        .and(RelationshipManager.OFFLINE_FILTER.negate()));
 
 		onlineUsers.clear();
 
