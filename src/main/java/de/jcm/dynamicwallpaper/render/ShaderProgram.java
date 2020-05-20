@@ -3,8 +3,7 @@ package de.jcm.dynamicwallpaper.render;
 import org.joml.*;
 import org.lwjgl.system.MemoryStack;
 
-import static org.lwjgl.opengl.GL20.*;
-import static org.lwjgl.opengl.GL30.glBindFragDataLocation;
+import static org.lwjgl.opengl.GL33.*;
 
 public class ShaderProgram
 {

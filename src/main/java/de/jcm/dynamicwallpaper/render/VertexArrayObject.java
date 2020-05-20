@@ -1,6 +1,6 @@
 package de.jcm.dynamicwallpaper.render;
 
-import static org.lwjgl.opengl.GL30.*;
+import static org.lwjgl.opengl.GL33.*;
 
 public class VertexArrayObject
 {
