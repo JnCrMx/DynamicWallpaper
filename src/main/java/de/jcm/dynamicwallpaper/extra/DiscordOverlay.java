@@ -14,7 +14,6 @@ import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.tuple.ImmutableTriple;
 import org.apache.commons.lang3.tuple.Triple;
 import org.joml.Matrix4f;
-import org.lwjgl.glfw.GLFW;
 import org.lwjgl.system.MemoryStack;
 
 import java.io.File;
@@ -241,7 +240,7 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 		}
 	}
 
-	public void render()
+	public void render(double time)
 	{
 		Triple<Long, ImageDimensions, byte[]> image = images.poll();
 		if(image != null)
@@ -285,7 +284,7 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 				textures.get(uid).bind();
 
 				float angle = (float) ((2*Math.PI*i)/onlineUsers.size() -
-						GLFW.glfwGetTime()*ROTATION_SPEED);
+						time*ROTATION_SPEED);
 
 				Matrix4f matrix = new Matrix4f()
 						.rotation(angle, 0, 0, 1)

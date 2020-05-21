@@ -606,6 +606,8 @@ public class DynamicWallpaper
 		// Set the clear color
 		glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
+		// used to freeze animations when paused
+		double lastTime = glfwGetTime();
 		// Run the rendering loop until the user has attempted to close
 		// the window or has pressed the ESCAPE key.
 		while(!glfwWindowShouldClose(window))
@@ -617,11 +619,12 @@ public class DynamicWallpaper
 			if(state == WallpaperState.PLAYING)
 			{
 				updateTexture();
+				lastTime = glfwGetTime();
 			}
 			render();
 			for(Overlay overlay : overlays)
 			{
-				overlay.render();
+				overlay.render(lastTime);
 			}
 			if(state == WallpaperState.LOADING)
 			{

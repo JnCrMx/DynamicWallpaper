@@ -9,7 +9,7 @@ public interface Overlay
 	List<Class<? extends Overlay>> OVERLAYS = new ArrayList<>();
 
 	void prepare() throws IOException;
-	void render();
+	void render(double time);
 
 	String getName();
 }
