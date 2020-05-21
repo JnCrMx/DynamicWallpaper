@@ -143,6 +143,12 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 
 						onlineUsers.add(uid);
 					}
+					else
+					{
+						System.out.printf("Cannot fetch avatar of %s#%s!\n",
+								                   relationship.getUser().getUsername(),
+								                   relationship.getUser().getDiscriminator());
+					}
 				});
 			}
 		}
