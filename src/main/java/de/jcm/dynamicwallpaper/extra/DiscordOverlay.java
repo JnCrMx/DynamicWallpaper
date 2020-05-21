@@ -36,7 +36,8 @@ import static org.lwjgl.opengl.GL20.GL_VERTEX_SHADER;
 
 public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 {
-	private static final float ROTATION_SPEECH = 0.5f;
+	private static final int CIRCLE_VERTEX_COUNT = 36;
+	private static final float ROTATION_SPEED = 0.5f;
 
 	private Core core;
 
@@ -199,7 +200,7 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 
 		// Init OpenGL stuff
 		Shader vertexShader = Shader.loadShader(GL_VERTEX_SHADER, "/shaders/loading.vsh");
-		Shader fragmentShader = Shader.loadShader(GL_FRAGMENT_SHADER, "/shaders/avatar.fsh");
+		Shader fragmentShader = Shader.loadShader(GL_FRAGMENT_SHADER, "/shaders/loading.fsh");
 
 		program = new ShaderProgram();
 		program.attachShader(vertexShader);
@@ -217,25 +218,22 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 
 		try(MemoryStack stack = MemoryStack.stackPush())
 		{
-			/* Vertex data */
-			FloatBuffer vertices = stack.mallocFloat(4 * 3);
-			vertices.put(-1.0f).put(-1.0f).put(0.0f);
-			vertices.put(-1.0f).put(1.0f).put(0.0f);
-			vertices.put(1.0f).put(1.0f).put(0.0f);
-			vertices.put(1.0f).put(-1.0f).put(0.0f);
+			FloatBuffer vertices = stack.mallocFloat(CIRCLE_VERTEX_COUNT * 3);
+			FloatBuffer textures = stack.mallocFloat(CIRCLE_VERTEX_COUNT * 2);
+			IntBuffer elements = stack.mallocInt(CIRCLE_VERTEX_COUNT * 3);
+
+			for(int i=0; i<CIRCLE_VERTEX_COUNT; i++)
+			{
+				float x = (float) Math.sin(i*(2*Math.PI/CIRCLE_VERTEX_COUNT));
+				float y = (float) Math.cos(i*(2*Math.PI/CIRCLE_VERTEX_COUNT));
+
+				vertices.put(x).put(y).put(0.0f);
+				textures.put(x*0.5f+0.5f).put(-y*0.5f+0.5f);
+				elements.put(0).put(i).put((i+1)%CIRCLE_VERTEX_COUNT);
+			}
+
 			vertices.flip();
-
-			/* Texture data */
-			FloatBuffer textures = stack.mallocFloat(4 * 2);
-			textures.put(0f).put(1f);
-			textures.put(0f).put(0f);
-			textures.put(1f).put(0f);
-			textures.put(1f).put(1f);
 			textures.flip();
-
-			IntBuffer elements = stack.mallocInt(4 * 3);
-			elements.put(0).put(1).put(2);
-			elements.put(2).put(3).put(0);
 			elements.flip();
 
 			avatar = new Mesh();
@@ -276,7 +274,7 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 			Matrix4f matrix = new Matrix4f().identity();
 			program.setUniform(modelMatrixUniform, matrix);
 
-			glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+			glDrawElements(GL_TRIANGLES, CIRCLE_VERTEX_COUNT*3, GL_UNSIGNED_INT, 0);
 		}
 
 		for(int i=0; i<onlineUsers.size(); i++)
@@ -287,7 +285,7 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 				textures.get(uid).bind();
 
 				float angle = (float) ((2*Math.PI*i)/onlineUsers.size() -
-						GLFW.glfwGetTime()*ROTATION_SPEECH);
+						GLFW.glfwGetTime()*ROTATION_SPEED);
 
 				Matrix4f matrix = new Matrix4f()
 						.rotation(angle, 0, 0, 1)
@@ -295,7 +293,7 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 						.rotate(angle, 0, 0, -1);
 				program.setUniform(modelMatrixUniform, matrix);
 
-				glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+				glDrawElements(GL_TRIANGLES, CIRCLE_VERTEX_COUNT*3, GL_UNSIGNED_INT, 0);
 			}
 		}
 	}
