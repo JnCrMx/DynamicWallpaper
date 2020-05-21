@@ -4,6 +4,7 @@ import de.jcm.discordgamesdk.*;
 import de.jcm.discordgamesdk.image.ImageDimensions;
 import de.jcm.discordgamesdk.image.ImageHandle;
 import de.jcm.discordgamesdk.image.ImageType;
+import de.jcm.discordgamesdk.user.OnlineStatus;
 import de.jcm.discordgamesdk.user.Relationship;
 import de.jcm.dynamicwallpaper.Utils;
 import de.jcm.dynamicwallpaper.render.Mesh;
@@ -11,9 +12,12 @@ import de.jcm.dynamicwallpaper.render.Shader;
 import de.jcm.dynamicwallpaper.render.ShaderProgram;
 import de.jcm.dynamicwallpaper.render.Texture;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.ImmutableTriple;
+import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.lang3.tuple.Triple;
 import org.joml.Matrix4f;
+import org.joml.Vector4f;
 import org.lwjgl.system.MemoryStack;
 
 import java.io.File;
@@ -44,6 +48,7 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 	private ShaderProgram program;
 
 	private int modelMatrixUniform;
+	private int outlineColorUniform;
 
 	public static File downloadDiscordLibrary() throws IOException
 	{
@@ -103,6 +108,21 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 		return null;
 	}
 
+	public static Vector4f getStatusColor(OnlineStatus status)
+	{
+		switch(status)
+		{
+			case ONLINE:
+				return new Vector4f(0.0f, 1.0f, 0.0f, 1.0f);
+			case IDLE:
+				return new Vector4f(1.0f, 1.0f, 0.0f, 1.0f);
+			case DO_NO_DISTURB:
+				return new Vector4f(1.0f, 0.0f, 0.0f, 1.0f);
+			default:
+				return new Vector4f(0.0f, 0.0f, 0.0f, 0.0f);
+		}
+	}
+
 	public DiscordOverlay()
 	{
 
@@ -110,7 +130,7 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 
 	private final Queue<Triple<Long, ImageDimensions, byte[]>> images = new ArrayDeque<>();
 	private final Map<Long, Texture> textures = new HashMap<>();
-	private final List<Long> onlineUsers = new ArrayList<>();
+	private final List<Pair<Long, OnlineStatus>> onlineUsers = new ArrayList<>();
 	private long currentUser;
 
 	@Override
@@ -129,7 +149,7 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 			ImageHandle handle = new ImageHandle(ImageType.USER, uid, 256);
 			if(textures.containsKey(uid))
 			{
-				onlineUsers.add(uid);
+				onlineUsers.add(new ImmutablePair<>(uid, relationship.getPresence().getStatus()));
 			}
 			else
 			{
@@ -141,7 +161,7 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 						byte[] data = core.imageManager().getData(handle, dim);
 						images.add(new ImmutableTriple<>(uid, dim, data));
 
-						onlineUsers.add(uid);
+						onlineUsers.add(new ImmutablePair<>(uid, relationship.getPresence().getStatus()));
 					}
 					else
 					{
@@ -183,7 +203,7 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 		// Init Discord API
 		try
 		{
-			Core.init(downloadDiscordLibrary());
+			Core.init(Objects.requireNonNull(downloadDiscordLibrary()));
 		}
 		catch(IOException e)
 		{
@@ -199,7 +219,7 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 
 		// Init OpenGL stuff
 		Shader vertexShader = Shader.loadShader(GL_VERTEX_SHADER, "/shaders/loading.vsh");
-		Shader fragmentShader = Shader.loadShader(GL_FRAGMENT_SHADER, "/shaders/loading.fsh");
+		Shader fragmentShader = Shader.loadShader(GL_FRAGMENT_SHADER, "/shaders/avatar.fsh");
 
 		program = new ShaderProgram();
 		program.attachShader(vertexShader);
@@ -209,6 +229,7 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 		program.use();
 
 		modelMatrixUniform = program.getUniformLocation("modelMatrix");
+		outlineColorUniform = program.getUniformLocation("outlineColor");
 		int projectionMatrixUniform = program.getUniformLocation("projectionMatrix");
 
 		// too lazy to do something weird with perspective and stuff, so just use scale
@@ -259,7 +280,8 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 
 			ImageDimensions dim = image.getMiddle();
 
-			texture.uploadData(dim.getWidth(), dim.getHeight(), buffer);
+			// data is RGBA, but we want to truncate the alpha channel and render it RGB
+			texture.uploadData(GL_RGB8, dim.getWidth(), dim.getHeight(), GL_RGBA, buffer);
 			textures.put(image.getLeft(), texture);
 		}
 
@@ -272,13 +294,15 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 
 			Matrix4f matrix = new Matrix4f().identity();
 			program.setUniform(modelMatrixUniform, matrix);
+			program.setUniform(outlineColorUniform, new Vector4f(0.0f, 0.0f, 0.0f, 0.0f));
 
 			glDrawElements(GL_TRIANGLES, CIRCLE_VERTEX_COUNT*3, GL_UNSIGNED_INT, 0);
 		}
 
 		for(int i=0; i<onlineUsers.size(); i++)
 		{
-			long uid = onlineUsers.get(i);
+			Pair<Long, OnlineStatus> pair = onlineUsers.get(i);
+			long uid = pair.getLeft();
 			if(textures.containsKey(uid))
 			{
 				textures.get(uid).bind();
@@ -291,6 +315,8 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 						.translate(5, 0, 0)
 						.rotate(angle, 0, 0, -1);
 				program.setUniform(modelMatrixUniform, matrix);
+
+				program.setUniform(outlineColorUniform, getStatusColor(pair.getRight()));
 
 				glDrawElements(GL_TRIANGLES, CIRCLE_VERTEX_COUNT*3, GL_UNSIGNED_INT, 0);
 			}
