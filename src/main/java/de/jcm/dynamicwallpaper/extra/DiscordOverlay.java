@@ -130,7 +130,7 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 
 	private final Queue<Triple<Long, ImageDimensions, byte[]>> images = new ArrayDeque<>();
 	private final Map<Long, Texture> textures = new HashMap<>();
-	private final List<Pair<Long, OnlineStatus>> onlineUsers = new ArrayList<>();
+	private final Map<Long, OnlineStatus> onlineUsers = new HashMap<>();
 	private long currentUser;
 
 	@Override
@@ -149,7 +149,8 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 			ImageHandle handle = new ImageHandle(ImageType.USER, uid, 256);
 			if(textures.containsKey(uid))
 			{
-				onlineUsers.add(new ImmutablePair<>(uid, relationship.getPresence().getStatus()));
+				if(!onlineUsers.containsKey(uid))
+					onlineUsers.put(uid, relationship.getPresence().getStatus());
 			}
 			else
 			{
@@ -161,7 +162,8 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 						byte[] data = core.imageManager().getData(handle, dim);
 						images.add(new ImmutableTriple<>(uid, dim, data));
 
-						onlineUsers.add(new ImmutablePair<>(uid, relationship.getPresence().getStatus()));
+						if(!onlineUsers.containsKey(uid))
+							onlineUsers.put(uid, relationship.getPresence().getStatus());
 					}
 					else
 					{
@@ -299,10 +301,11 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 			glDrawElements(GL_TRIANGLES, CIRCLE_VERTEX_COUNT*3, GL_UNSIGNED_INT, 0);
 		}
 
+		Iterator<Map.Entry<Long, OnlineStatus>> it = onlineUsers.entrySet().iterator();
 		for(int i=0; i<onlineUsers.size(); i++)
 		{
-			Pair<Long, OnlineStatus> pair = onlineUsers.get(i);
-			long uid = pair.getLeft();
+			Map.Entry<Long, OnlineStatus> entry = it.next();
+			long uid = entry.getKey();
 			if(textures.containsKey(uid))
 			{
 				textures.get(uid).bind();
@@ -316,7 +319,7 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 						.rotate(angle, 0, 0, -1);
 				program.setUniform(modelMatrixUniform, matrix);
 
-				program.setUniform(outlineColorUniform, getStatusColor(pair.getRight()));
+				program.setUniform(outlineColorUniform, getStatusColor(entry.getValue()));
 
 				glDrawElements(GL_TRIANGLES, CIRCLE_VERTEX_COUNT*3, GL_UNSIGNED_INT, 0);
 			}
