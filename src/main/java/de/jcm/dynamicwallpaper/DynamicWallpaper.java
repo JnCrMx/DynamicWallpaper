@@ -4,8 +4,10 @@ import de.jcm.dynamicwallpaper.colormode.ActivityColorMode;
 import de.jcm.dynamicwallpaper.colormode.ColorMode;
 import de.jcm.dynamicwallpaper.colormode.ConstantColorMode;
 import de.jcm.dynamicwallpaper.colormode.HueWaveColorMode;
+import de.jcm.dynamicwallpaper.extra.DiscordOverlay;
 import de.jcm.dynamicwallpaper.extra.ErrorScreen;
 import de.jcm.dynamicwallpaper.extra.LoadingScreen;
+import de.jcm.dynamicwallpaper.extra.Overlay;
 import de.jcm.dynamicwallpaper.render.Mesh;
 import de.jcm.dynamicwallpaper.render.Shader;
 import de.jcm.dynamicwallpaper.render.ShaderProgram;
@@ -35,12 +37,15 @@ import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Objects;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
+import java.util.stream.Stream;
 
 import static org.lwjgl.glfw.Callbacks.glfwFreeCallbacks;
 import static org.lwjgl.glfw.GLFW.*;
@@ -54,6 +59,10 @@ public class DynamicWallpaper
 		ColorMode.MODES.add(ConstantColorMode.class);
 		ColorMode.MODES.add(HueWaveColorMode.class);
 		ColorMode.MODES.add(ActivityColorMode.class);
+	}
+	static
+	{
+		Overlay.OVERLAYS.add(DiscordOverlay.class);
 	}
 
 	public static final Pattern linkPattern = Pattern.compile("(http(s|)*://|www\\.)\\S*");
@@ -74,12 +83,14 @@ public class DynamicWallpaper
 
 	private ColorMode colorMode;
 	private final HashMap<String, JSONObject> configurations = new HashMap<>();
+	private String[] overlayCache;
 
 	private final AtomicReference<FFmpegFrameGrabber> frameGrabber = new AtomicReference<>();
 	private final AtomicReference<WallpaperState> state = new AtomicReference<>(WallpaperState.LOADING);
 
 	private LoadingScreen loadingScreen;
 	private ErrorScreen errorScreen;
+	private Overlay[] overlays;
 
 	private String video;
 	// whether to store the video as a relative path (if possible)
@@ -215,6 +226,43 @@ public class DynamicWallpaper
 			{
 				e.printStackTrace();
 			}
+
+			JSONArray overlays = configObject.optJSONArray("overlays");
+			if(overlays != null)
+			{
+				this.overlays = overlays.toList().stream()
+						.map(Object::toString)
+						.map(s ->
+						     {
+							     try
+							     {
+								     return Class.forName(s);
+							     }
+							     catch(ClassNotFoundException e)
+							     {
+								     e.printStackTrace();
+								     return null;
+							     }
+						     })
+						.filter(Objects::nonNull)
+						.filter(Overlay.class::isAssignableFrom)
+						.map(c->{
+							try
+							{
+								return (Overlay) c.getConstructor().newInstance();
+							}
+							catch(Exception e)
+							{
+								e.printStackTrace();
+								return null;
+							}})
+						.filter(Objects::nonNull)
+						.toArray(Overlay[]::new);
+			}
+			else
+			{
+				this.overlays = new Overlay[0];
+			}
 		}
 		catch(IOException e)
 		{
@@ -265,6 +313,8 @@ public class DynamicWallpaper
 			object.append("modeConfigs", o2);
 		});
 
+		object.put("overlays", Arrays.asList(getOverlayCache()));
+
 		File config = new File("config.json");
 		try(BufferedWriter writer = new BufferedWriter(new FileWriter(config)))
 		{
@@ -301,6 +351,15 @@ public class DynamicWallpaper
 
 		saveConfig();
 
+		/*
+		Shutdown all overlays; do this after saving the config to make sure
+		we don't loose any unsaved changes in case we crash
+		 */
+		for(Overlay overlay : overlays)
+		{
+			overlay.shutdown();
+		}
+
 		File cache = new File("cache.mp4");
 		if(!hasCache && cache.exists())
 		{
@@ -328,6 +387,8 @@ public class DynamicWallpaper
 
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+
+		glfwWindowHint(GLFW_SAMPLES, 16);
 
 		glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE); // the window will stay hidden after creation
 		glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
@@ -510,6 +571,11 @@ public class DynamicWallpaper
 
 			loadingScreen.prepare();
 			errorScreen.prepare();
+
+			for(Overlay overlay : overlays)
+			{
+				overlay.prepare();
+			}
 		}
 		catch(IOException e)
 		{
@@ -528,6 +594,9 @@ public class DynamicWallpaper
 
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		glEnable(GL_BLEND);
+
+		glEnable(GL_MULTISAMPLE);
+
 		glEnable(GL_TEXTURE_2D);
 
 		texture = new Texture();
@@ -542,6 +611,8 @@ public class DynamicWallpaper
 		// Set the clear color
 		glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
+		// used to freeze animations when paused
+		double lastTime = glfwGetTime();
 		// Run the rendering loop until the user has attempted to close
 		// the window or has pressed the ESCAPE key.
 		while(!glfwWindowShouldClose(window))
@@ -553,8 +624,13 @@ public class DynamicWallpaper
 			if(state == WallpaperState.PLAYING)
 			{
 				updateTexture();
+				lastTime = glfwGetTime();
 			}
 			render();
+			for(Overlay overlay : overlays)
+			{
+				overlay.render(lastTime);
+			}
 			if(state == WallpaperState.LOADING)
 			{
 				loadingScreen.render();
@@ -738,5 +814,18 @@ public class DynamicWallpaper
 	public static void main(String[] args)
 	{
 		new DynamicWallpaper().run();
+	}
+
+	public void setOverlayCache(String[] overlayCache)
+	{
+		this.overlayCache = overlayCache;
+	}
+
+	public String[] getOverlayCache()
+	{
+		if(overlayCache != null)
+			return overlayCache;
+		else
+			return Stream.of(overlays).map(Overlay::getClass).map(Class::getName).toArray(String[]::new);
 	}
 }
