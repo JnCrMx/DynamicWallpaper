@@ -1,5 +1,7 @@
 # DynamicWallpaper
 
+[![Documentation Status](https://readthedocs.org/projects/dynamicwallpaper/badge)](https://dynamicwallpaper.readthedocs.io/)
+
 *DynamicWallpaper* is a small Java program for playing a video 
 as a wallpaper and settings up dynamic colors (e.g. based on 
 your open processes or windows).
@@ -7,6 +9,9 @@ your open processes or windows).
 ![Example GIF](img/example.gif)
 
 *Example of a color changing wave as wallpaper*
+
+**You can find a better documentation (hosted by [ReadTheDocs](https://readthedocs.org/)) here:**
+https://dynamicwallpaper.readthedocs.io
 
 ## Installation
 
