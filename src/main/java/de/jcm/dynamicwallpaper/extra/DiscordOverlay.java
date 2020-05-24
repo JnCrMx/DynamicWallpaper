@@ -12,9 +12,7 @@ import de.jcm.dynamicwallpaper.render.Shader;
 import de.jcm.dynamicwallpaper.render.ShaderProgram;
 import de.jcm.dynamicwallpaper.render.Texture;
 import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.ImmutableTriple;
-import org.apache.commons.lang3.tuple.Pair;
 import org.apache.commons.lang3.tuple.Triple;
 import org.joml.Matrix4f;
 import org.joml.Vector4f;
@@ -29,13 +27,12 @@ import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.util.*;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-import static org.lwjgl.opengl.GL11.*;
-import static org.lwjgl.opengl.GL20.GL_FRAGMENT_SHADER;
-import static org.lwjgl.opengl.GL20.GL_VERTEX_SHADER;
+import static org.lwjgl.opengl.GL33.*;
 
 public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 {
@@ -43,6 +40,8 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 	private static final float ROTATION_SPEED = 0.5f;
 
 	private Core core;
+	private CreateParams createParams;
+	private ScheduledFuture<?> discordLoopFuture;
 
 	private Mesh avatar;
 	private ShaderProgram program;
@@ -211,11 +210,11 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 		{
 			e.printStackTrace();
 		}
-		CreateParams params = new CreateParams();
-		params.registerEventHandler(this);
-		core = new Core(params);
+		createParams = new CreateParams();
+		createParams.registerEventHandler(this);
+		core = new Core(createParams);
 
-		Executors.newSingleThreadScheduledExecutor()
+		discordLoopFuture = Executors.newSingleThreadScheduledExecutor()
 				.scheduleAtFixedRate(core::runCallbacks, 0,
 				                     16, TimeUnit.MILLISECONDS);
 
@@ -324,6 +323,19 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 				glDrawElements(GL_TRIANGLES, CIRCLE_VERTEX_COUNT*3, GL_UNSIGNED_INT, 0);
 			}
 		}
+	}
+
+	@Override
+	public void shutdown()
+	{
+		avatar.delete();
+		program.delete();
+		textures.values().forEach(Texture::delete);
+
+		discordLoopFuture.cancel(false);
+
+		core.close();
+		createParams.close();
 	}
 
 	@Override

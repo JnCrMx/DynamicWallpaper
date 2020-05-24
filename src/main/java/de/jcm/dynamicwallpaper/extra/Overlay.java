@@ -10,6 +10,7 @@ public interface Overlay
 
 	void prepare() throws IOException;
 	void render(double time);
+	void shutdown();
 
 	String getName();
 }

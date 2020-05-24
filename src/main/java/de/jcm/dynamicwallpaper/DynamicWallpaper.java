@@ -355,6 +355,15 @@ public class DynamicWallpaper
 
 		saveConfig();
 
+		/*
+		Shutdown all overlays; do this after saving the config to make sure
+		we don't loose any unsaved changes in case we crash
+		 */
+		for(Overlay overlay : overlays)
+		{
+			overlay.shutdown();
+		}
+
 		File cache = new File("cache.mp4");
 		if(!hasCache && cache.exists())
 		{
