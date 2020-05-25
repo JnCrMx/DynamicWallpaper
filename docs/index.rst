@@ -6,6 +6,12 @@
 DynamicWallpaper Documentation
 ==============================
 
+DynamicWallpaper is a small Java program for playing a video as a wallpaper and settings up dynamic colors
+(e.g. based on your open processes or windows).
+
+.. figure:: /../img/example.gif
+
+    Example of a color changing wave as wallpaper
 
 .. toctree::
     :maxdepth: 2
