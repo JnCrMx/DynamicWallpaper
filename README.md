@@ -6,7 +6,7 @@
 as a wallpaper and settings up dynamic colors (e.g. based on 
 your open processes or windows).
 
-![Example GIF](img/example.gif)
+![Example GIF](docs/_static/example.gif)
 
 *Example of a color changing wave as wallpaper*
 
@@ -114,7 +114,7 @@ symbols. In this window we can then do basically anything we want.
 
 On Windows there is a window called "WorkerW" which can be used as a parent for our window.
 
-![WorkerW](img/WorkerW.PNG)
+![WorkerW](docs/_static/WorkerW.PNG)
 
 *Screenshot from [WinSpy](https://sourceforge.net/projects/winspyex/)
 with WorkerW and our frame highlighted*
