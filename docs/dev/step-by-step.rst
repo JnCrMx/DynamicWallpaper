@@ -52,7 +52,7 @@ The basic idea is to put a window between your "normal" desktop background and t
 There is a pretty nice and useful window we can use for that.
 It is called ``WorkerW`` and lies exactly where we want it to be.
 
-.. figure:: /_static/WorkerW.png
+.. figure:: /../img/WorkerW.png
 
     Screenshot from `WinSpy`_ showing ``WorkerW`` and our window.
 
@@ -164,7 +164,7 @@ Finding ``WorkerW``
 The problem with finding ``WorkerW`` is that - as you can see in the figure below - there are two ``WorkerW`` windows:
 One of them contains a window with the class ``SHELLDLL_DefView`` and the other one will contain our frame.
 
-.. figure:: /_static/WorkerW_2.png
+.. figure:: WorkerW_2.png
 
     Screenshot from `WinSpy`_ showing both ``WorkerW`` windows.
 
