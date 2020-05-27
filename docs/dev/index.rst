@@ -4,5 +4,5 @@ Developer Documentation
 .. toctree::
     :maxdepth: 2
 
-    step-by-step
+    how-it-works
     problems

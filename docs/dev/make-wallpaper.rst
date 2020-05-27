@@ -1,4 +1,3 @@
-.. _LWJGL: https://www.lwjgl.org/
 .. _JNA: https://github.com/java-native-access/jna
 .. _WinSpy: https://sourceforge.net/projects/winspyex/
 .. _weebp: https://github.com/Francesco149/weebp
@@ -25,21 +24,11 @@
 .. |glfwShowWindow| replace:: ``glfwShowWindow``
 .. _glfwShowWindow: https://javadoc.lwjgl.org/org/lwjgl/glfw/GLFW.html#glfwShowWindow(long)
 
-How it works: Step by Step
-==========================
-
-Opening a window with an OpenGL context
-----------------------------------------
-
-The first step is to get hold on a window in which we can render with OpenGL.
-For that we simply use `LWJGL`_.
-The code basically follows the structure of the example you can find on `their website <https://www.lwjgl.org/guide>`_.
-
 Setting a window as wallpaper
------------------------------
+=============================
 
 The theory behind it
-^^^^^^^^^^^^^^^^^^^^
+--------------------
 
 The basic idea is to put a window between your "normal" desktop background and the desktop symbols.
 
@@ -64,7 +53,7 @@ make our own window a child of ``WorkerW``.
     is another useful resource about this, which also explains how ``WorkerW`` is spawned.
 
 Java implementation
-^^^^^^^^^^^^^^^^^^^
+-------------------
 
 After calling ``glfwCreateWindow`` and receiving a GLFW handle to the window,
 we can start setting it as our wallpaper. This is basically where the magic happens.
@@ -84,7 +73,7 @@ we can start setting it as our wallpaper. This is basically where the magic happ
     Utils.makeWallpaper(window);
 
 The beginning
-"""""""""""""
+^^^^^^^^^^^^^
 
 So, let's have a look into the ``de.jcm.dynamicwallpaper.Utils`` class:
 
@@ -108,7 +97,7 @@ If we aren't on Windows, we just throw a ``java.lang.UnsupportedOperationExcepti
 If everything is right, we call ``Utils.windowsMakeWallpaper`` and continue our journey there:
 
 Native window handles
-"""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: java
     :linenos:
@@ -137,7 +126,7 @@ This makes it easier for us to operate with it and pass it to other JNA function
 Now we need to spawn and find the ``WorkerW`` which we do in a separate method.
 
 Spawning ``WorkerW``
-""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^
 
 To spawn ``WorkerW`` all we need to do is sending two (undocumented) messages to ``Progman``.
 
@@ -159,7 +148,7 @@ To do so, we first need to find ``Program`` (line 32) and then we can just send 
     because JNA does not do that automatically and the Windows API requires it.
 
 Finding ``WorkerW``
-"""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^
 
 The problem with finding ``WorkerW`` is that - as you can see in the figure below - there are two ``WorkerW`` windows:
 One of them contains a window with the class ``SHELLDLL_DefView`` and the other one will contain our frame.
@@ -220,7 +209,7 @@ If we successfully found such a window, we put it into our ``AtomicReference``.
 Finally, we return the handle to the ``WorkerW`` we (hopefully) found and stored in the ``AtomicReference``.
 
 Modifying our window styles
-"""""""""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Returning to the ``de.jcm.dynamicwallpaper.Utils.windowsMakeWallpaper`` method, we now need to adjust
 some window styles to make it work as wallpaper.
@@ -263,7 +252,7 @@ with the bitwise compliment of the flags we want to remove, and finally setting 
     https://github.com/Codeusa/Borderless-Gaming/blob/2fef4ccc121412f215cd7f185c4351fd634cab8b/BorderlessGaming.Logic/Windows/Manipulation.cs#L70
 
 Making ``WorkerW`` adopt our window
-"""""""""""""""""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Making the ``WorkerW`` we just found adopt our window
 (so it becomes our window's parent and we inherit its stacking position)
@@ -289,7 +278,7 @@ We just call |SetParent|_ to set ``WorkerW`` as our parent and then make our win
 **Done!**
 
 Adjusting position and size
-"""""""""""""""""""""""""""
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 *Almost* done.
 
