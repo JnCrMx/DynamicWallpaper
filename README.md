@@ -114,7 +114,7 @@ symbols. In this window we can then do basically anything we want.
 
 On Windows there is a window called "WorkerW" which can be used as a parent for our window.
 
-![WorkerW](img/WorkerW.PNG)
+![WorkerW](img/WorkerW.png)
 
 *Screenshot from [WinSpy](https://sourceforge.net/projects/winspyex/)
 with WorkerW and our frame highlighted*
