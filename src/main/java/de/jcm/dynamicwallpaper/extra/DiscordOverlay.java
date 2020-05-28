@@ -300,7 +300,7 @@ public class DiscordOverlay extends DiscordEventAdapter implements Overlay
 			glDrawElements(GL_TRIANGLES, CIRCLE_VERTEX_COUNT*3, GL_UNSIGNED_INT, 0);
 		}
 
-		Iterator<Map.Entry<Long, OnlineStatus>> it = onlineUsers.entrySet().iterator();
+		Iterator<Map.Entry<Long, OnlineStatus>> it = new HashMap<>(onlineUsers).entrySet().iterator();
 		for(int i=0; i<onlineUsers.size(); i++)
 		{
 			Map.Entry<Long, OnlineStatus> entry = it.next();
