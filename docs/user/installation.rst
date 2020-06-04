@@ -32,4 +32,5 @@ Then build the application using `Gradle`_ (you don't need to have it installed 
     chmod +x gradlew
     ./gradlew build
 
-For next steps see :ref:`Launching the application`.
+- For next steps see :ref:`Launching the application`.
+- For setting the program up for being able to use YouTube as a video source see :ref:`Using videos from YouTube`.
