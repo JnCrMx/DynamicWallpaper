@@ -45,3 +45,5 @@ You can also ask `Gradle`_ to run the application:
 
 If you use this way, you don't need to rebuild the program if the source changes.
 Building the program is included in this command.
+
+- For information about controlling and configuring your wallpaper see :ref:`User Interface`

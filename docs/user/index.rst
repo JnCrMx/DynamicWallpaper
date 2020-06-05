@@ -7,4 +7,5 @@ User documentation
     platforms
     installation
     launch
+    user-interface
     youtube
