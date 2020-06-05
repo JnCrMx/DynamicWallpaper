@@ -12,6 +12,7 @@ plugins {
     id 'application'
     id 'com.github.johnrengelman.shadow' version '5.2.0'
     id 'de.fuerstenau.buildconfig' version '1.1.8'
+    id "kr.motd.sphinx" version "2.9.0"
     id 'idea'
 }
 
@@ -76,6 +77,10 @@ dependencies {
 
 buildConfig {
     packageName = 'de.jcm.dynamicwallpaper'
+}
+
+sphinx {
+    sourceDirectory = "${projectDir}/docs"
 }
 
 mainClassName = 'de.jcm.dynamicwallpaper.DynamicWallpaper'
