@@ -22,3 +22,6 @@ You can do the following things in the GUI:
     :maxdepth: 1
 
     ui-control
+    ui-configuration
+
+For information about color modes (which you can also configure in the UI), refer to :ref:`Color Modes`.
