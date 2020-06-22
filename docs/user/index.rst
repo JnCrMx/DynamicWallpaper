@@ -8,4 +8,5 @@ User documentation
     installation
     launch
     user-interface
+    color-modes
     youtube
