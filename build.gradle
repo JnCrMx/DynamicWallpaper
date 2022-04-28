@@ -48,6 +48,13 @@ dependencies {
     implementation "org.lwjgl:lwjgl-opengl"
     implementation "org.lwjgl:lwjgl-stb"
 
+    //64 Bit Linux
+    runtimeOnly "org.lwjgl:lwjgl::natives-linux"
+    runtimeOnly "org.lwjgl:lwjgl-assimp::natives-linux"
+    runtimeOnly "org.lwjgl:lwjgl-glfw::natives-linux"
+    runtimeOnly "org.lwjgl:lwjgl-openal::natives-linux"
+    runtimeOnly "org.lwjgl:lwjgl-opengl::natives-linux"
+    runtimeOnly "org.lwjgl:lwjgl-stb::natives-linux"
     //64 Bit Windows
     runtimeOnly "org.lwjgl:lwjgl::natives-windows"
     runtimeOnly "org.lwjgl:lwjgl-assimp::natives-windows"
@@ -74,7 +81,7 @@ dependencies {
     implementation group: 'org.joml', name: 'joml', version: '1.9.17'
     implementation group: 'com.github.vatbub', name: 'mslinks', version: '1.0.5'
 
-    implementation 'com.github.JnCrMx:discord-game-sdk4j:0.3'
+    implementation 'com.github.JnCrMx:discord-game-sdk4j:0.5.5'
 
     implementation 'com.dorkbox:SystemTray:4.1'
 

@@ -1,5 +1,6 @@
 package de.jcm.dynamicwallpaper;
 
+import com.sun.jna.Platform;
 import de.jcm.dynamicwallpaper.colormode.ActivityColorMode;
 import de.jcm.dynamicwallpaper.colormode.ColorMode;
 import de.jcm.dynamicwallpaper.colormode.ConstantColorMode;
@@ -117,13 +118,17 @@ public class DynamicWallpaper
 				colorMode.update();
 		}, 1, 1, TimeUnit.SECONDS);
 
-		try
+		if(Platform.isWindows())
 		{
-			UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
-		}
-		catch(ClassNotFoundException | InstantiationException | IllegalAccessException | UnsupportedLookAndFeelException e)
-		{
-			e.printStackTrace();
+			try
+			{
+				UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+			}
+			catch(ClassNotFoundException | InstantiationException | IllegalAccessException |
+			      UnsupportedLookAndFeelException e)
+			{
+				e.printStackTrace();
+			}
 		}
 
 		ImageIcon icon = new ImageIcon(Objects.requireNonNull(getClass().getResource("/images/icon.png")));

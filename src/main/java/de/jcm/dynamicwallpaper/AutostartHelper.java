@@ -24,6 +24,8 @@ public class AutostartHelper
 		File autostartFolder = new File(roaming, "Microsoft\\Windows\\Start Menu\\Programs\\Startup");
 
 		File[] links = autostartFolder.listFiles(f->f.getName().endsWith(".lnk"));
+		if(links == null)
+			return null;
 		for(File link : links)
 		{
 			if(link.getName().equals(LINK_NAME))
