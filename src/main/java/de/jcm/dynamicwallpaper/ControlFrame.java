@@ -1,6 +1,8 @@
 package de.jcm.dynamicwallpaper;
 
-import de.jcm.dynamicwallpaper.colormode.*;
+import de.jcm.dynamicwallpaper.colormode.ColorMode;
+import de.jcm.dynamicwallpaper.colormode.ColorModeConfigurationPanel;
+import de.jcm.dynamicwallpaper.extra.ExtraOptionDialog;
 import org.lwjgl.glfw.GLFW;
 
 import javax.swing.*;
@@ -13,6 +15,7 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
+import java.nio.file.NoSuchFileException;
 import java.util.Enumeration;
 
 public class ControlFrame extends JFrame
@@ -28,6 +31,8 @@ public class ControlFrame extends JFrame
 
 	private ColorMode colorMode;
 	private ColorModeConfigurationPanel modeConfigurationPanel;
+
+	public String[] overlayCache;
 
 	public ControlFrame(DynamicWallpaper wallpaper)
 	{
@@ -185,6 +190,13 @@ public class ControlFrame extends JFrame
 				});
 				controlButtonPanel.add(pausePlayButton);
 
+				JButton extra = new JButton("Extra options");
+				extra.addActionListener(e->{
+					ExtraOptionDialog dialog = new ExtraOptionDialog(this, wallpaper);
+					dialog.setVisible(true);
+				});
+				controlButtonPanel.add(extra);
+
 				JButton exit = new JButton("Exit");
 				exit.addActionListener(e->{
 					int option = JOptionPane.showConfirmDialog(this,
@@ -248,7 +260,13 @@ public class ControlFrame extends JFrame
 						{
 							wallpaper.startFrameGrabber();
 						}
-						catch(IOException | InterruptedException e)
+						catch(IOException e)
+						{
+							JOptionPane.showMessageDialog(null,
+							                              "Failed to open video: "+e.getLocalizedMessage(),
+							                              "Error", JOptionPane.ERROR_MESSAGE);
+						}
+						catch(InterruptedException e)
 						{
 							e.printStackTrace();
 						}
@@ -267,20 +285,38 @@ public class ControlFrame extends JFrame
 							wallpaper.setVideo(newFile.getPath());
 							if(apply)
 							{
-								wallpaper.startFrameGrabber();
+								try
+								{
+									wallpaper.startFrameGrabber();
+								}
+								catch(Exception e)
+								{
+									JOptionPane.showMessageDialog(null,
+									                              "Failed to open video: "+e.getLocalizedMessage(),
+									                              "Error", JOptionPane.ERROR_MESSAGE);
+								}
 							}
 						}
 					}
-					catch(InvalidPathException ignored)
+					catch(InvalidPathException | NoSuchFileException ignored)
 					{
 						wallpaper.setVideo(newFile.getPath());
 						if(apply)
 						{
-							wallpaper.startFrameGrabber();
+							try
+							{
+								wallpaper.startFrameGrabber();
+							}
+							catch(Exception e)
+							{
+								JOptionPane.showMessageDialog(null,
+								                              "Failed to open video: "+e.getLocalizedMessage(),
+								                              "Error", JOptionPane.ERROR_MESSAGE);
+							}
 						}
 					}
 				}
-				catch(IOException | InterruptedException e)
+				catch(IOException e)
 				{
 					e.printStackTrace();
 				}
@@ -293,6 +329,18 @@ public class ControlFrame extends JFrame
 
 		modeConfigurationPanel.apply();
 		wallpaper.setColorMode(colorMode);
+
+		if(overlayCache != null)
+		{
+			wallpaper.setOverlayCache(overlayCache);
+			if(apply)
+			{
+				JOptionPane.showMessageDialog(this, "You enabled or disabled an Overlay. " +
+						                              "In order for this to take effect, " +
+						                              "you need to restart the program.",
+				                              "Restart required", JOptionPane.WARNING_MESSAGE);
+			}
+		}
 
 		// if we are going to shutdown (-> confirm dialog), we don't need to save,
 		// but it's safer I guess, just in case we crash on shutdown

@@ -35,6 +35,7 @@ switch (OperatingSystem.current()) {
 
 repositories {
     mavenCentral()
+    maven { url 'https://jitpack.io' }
 }
 
 dependencies {
@@ -46,12 +47,21 @@ dependencies {
     implementation "org.lwjgl:lwjgl-openal"
     implementation "org.lwjgl:lwjgl-opengl"
     implementation "org.lwjgl:lwjgl-stb"
-    runtimeOnly "org.lwjgl:lwjgl::$lwjglNatives"
-    runtimeOnly "org.lwjgl:lwjgl-assimp::$lwjglNatives"
-    runtimeOnly "org.lwjgl:lwjgl-glfw::$lwjglNatives"
-    runtimeOnly "org.lwjgl:lwjgl-openal::$lwjglNatives"
-    runtimeOnly "org.lwjgl:lwjgl-opengl::$lwjglNatives"
-    runtimeOnly "org.lwjgl:lwjgl-stb::$lwjglNatives"
+
+    //64 Bit Windows
+    runtimeOnly "org.lwjgl:lwjgl::natives-windows"
+    runtimeOnly "org.lwjgl:lwjgl-assimp::natives-windows"
+    runtimeOnly "org.lwjgl:lwjgl-glfw::natives-windows"
+    runtimeOnly "org.lwjgl:lwjgl-openal::natives-windows"
+    runtimeOnly "org.lwjgl:lwjgl-opengl::natives-windows"
+    runtimeOnly "org.lwjgl:lwjgl-stb::natives-windows"
+    // 32 Bit Windows
+    runtimeOnly "org.lwjgl:lwjgl::natives-windows-x86"
+    runtimeOnly "org.lwjgl:lwjgl-assimp::natives-windows-x86"
+    runtimeOnly "org.lwjgl:lwjgl-glfw::natives-windows-x86"
+    runtimeOnly "org.lwjgl:lwjgl-openal::natives-windows-x86"
+    runtimeOnly "org.lwjgl:lwjgl-opengl::natives-windows-x86"
+    runtimeOnly "org.lwjgl:lwjgl-stb::natives-windows-x86"
 
     implementation 'net.java.dev.jna:jna:5.11.0'
     implementation 'net.java.dev.jna:jna-platform:5.11.0'
@@ -59,7 +69,12 @@ dependencies {
     implementation 'org.json:json:20190722'
 
     implementation group: 'commons-io', name: 'commons-io', version: '2.6'
+    implementation group: 'org.apache.commons', name: 'commons-lang3', version: '3.10'
+
     implementation group: 'org.joml', name: 'joml', version: '1.9.17'
+    implementation group: 'com.github.vatbub', name: 'mslinks', version: '1.0.5'
+
+    implementation 'com.github.JnCrMx:discord-game-sdk4j:0.3'
 
     implementation 'com.dorkbox:SystemTray:4.1'
 

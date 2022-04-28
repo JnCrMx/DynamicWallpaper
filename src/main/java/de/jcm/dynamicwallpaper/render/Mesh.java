@@ -3,7 +3,7 @@ package de.jcm.dynamicwallpaper.render;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 
-import static org.lwjgl.opengl.GL15.*;
+import static org.lwjgl.opengl.GL33.*;
 
 public class Mesh
 {

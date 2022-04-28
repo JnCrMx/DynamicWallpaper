@@ -17,21 +17,20 @@ import java.nio.IntBuffer;
 
 import static org.lwjgl.opengl.GL33.*;
 
-public class LoadingScreen
+public class ErrorScreen
 {
-	private static final int BUBBLE_COUNT = 6;
-	private static final float BUBBLE_OFFSET = 1.5f;
-	private static final float BUBBLE_SPEED = 2f;
+	private static final float SIGN_SPEED = 5f;
+	private static final float SIGN_AMPLITUDE = 0.1f;
 
 	private ShaderProgram program;
-	private Mesh bubble;
+	private Mesh warningSign;
 	private Texture texture;
 
 	private int modelMatrixUniform;
 
-	private final Matrix4f projectionMatirx;
+	private Matrix4f projectionMatirx;
 
-	public LoadingScreen()
+	public ErrorScreen()
 	{
 		// too lazy to do something weird with perspective and stuff, so just use scale
 		projectionMatirx = new Matrix4f().scale(1f/16, 1f/9f, 1f);
@@ -51,8 +50,6 @@ public class LoadingScreen
 
 		modelMatrixUniform = program.getUniformLocation("modelMatrix");
 		int projectionMatrixUniform = program.getUniformLocation("projectionMatrix");
-
-		program.setUniform(projectionMatrixUniform, projectionMatirx);
 
 		try(MemoryStack stack = MemoryStack.stackPush())
 		{
@@ -77,8 +74,8 @@ public class LoadingScreen
 			elements.put(2).put(3).put(0);
 			elements.flip();
 
-			bubble = new Mesh();
-			bubble.fill(vertices, textures, elements, program);
+			warningSign = new Mesh();
+			warningSign.fill(vertices, textures, elements, program);
 		}
 
 		texture = new Texture();
@@ -88,7 +85,7 @@ public class LoadingScreen
 		texture.setParameter(GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		texture.setParameter(GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-		BufferedImage image = ImageIO.read(getClass().getResource("/images/bubble.png"));
+		BufferedImage image = ImageIO.read(getClass().getResource("/images/warning.png"));
 
 		int[] pixels = new int[image.getWidth() * image.getHeight()];
 		image.getRGB(0, 0, image.getWidth(), image.getHeight(), pixels, 0, image.getWidth());
@@ -105,6 +102,9 @@ public class LoadingScreen
 			}
 		}
 
+		projectionMatirx = projectionMatirx.scale(1024f/image.getHeight(), 1024f/image.getWidth(), 1f);
+		program.setUniform(projectionMatrixUniform, projectionMatirx);
+
 		buffer.flip();
 		texture.uploadData(image.getWidth(), image.getHeight(), buffer);
 	}
@@ -112,23 +112,14 @@ public class LoadingScreen
 	public void render()
 	{
 		texture.bind();
-		bubble.bind();
+		warningSign.bind();
 		program.use();
 
-		for(int i=0; i<BUBBLE_COUNT; i++)
-		{
-			Matrix4f modelMatrix = new Matrix4f();
-			modelMatrix = modelMatrix.scale(0.25f);
+		Matrix4f modelMatrix = new Matrix4f();
+		modelMatrix.translate(0, (float) (Math.sin(GLFW.glfwGetTime()*SIGN_SPEED)*SIGN_AMPLITUDE), 0);
 
-			double angle = Math.cos((GLFW.glfwGetTime()*BUBBLE_SPEED+
-					BUBBLE_OFFSET *i/BUBBLE_COUNT)%Math.PI) * Math.PI + Math.PI;
+		program.setUniform(modelMatrixUniform, modelMatrix);
 
-			modelMatrix = modelMatrix.rotate((float) angle, 0.0f, 0.0f, 1.0f);
-			modelMatrix = modelMatrix.translate(0.0f, 5.0f, 0.0f);
-
-			program.setUniform(modelMatrixUniform, modelMatrix);
-
-			glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-		}
+		glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 	}
 }
