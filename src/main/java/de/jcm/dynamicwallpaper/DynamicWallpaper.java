@@ -126,7 +126,7 @@ public class DynamicWallpaper
 			e.printStackTrace();
 		}
 
-		ImageIcon icon = new ImageIcon(getClass().getResource("/images/icon.png"));
+		ImageIcon icon = new ImageIcon(Objects.requireNonNull(getClass().getResource("/images/icon.png")));
 		controlFrame = new ControlFrame(this);
 		controlFrame.setIconImage(icon.getImage());
 
@@ -144,7 +144,7 @@ public class DynamicWallpaper
 				controlFrame.setVisible(true);
 			}
 		}));
-		systemTray.setImage(Objects.requireNonNull(getClass().getResource("/icon.png")));
+		systemTray.setImage(Objects.requireNonNull(getClass().getResource("/images/icon.png")));
 
 		loadingScreen = new LoadingScreen();
 		errorScreen = new ErrorScreen();
