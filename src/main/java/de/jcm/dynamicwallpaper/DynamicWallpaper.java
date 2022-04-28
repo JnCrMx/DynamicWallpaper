@@ -9,6 +9,8 @@ import de.jcm.dynamicwallpaper.render.Mesh;
 import de.jcm.dynamicwallpaper.render.Shader;
 import de.jcm.dynamicwallpaper.render.ShaderProgram;
 import de.jcm.dynamicwallpaper.render.Texture;
+import dorkbox.systemTray.MenuItem;
+import dorkbox.systemTray.SystemTray;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.input.TeeInputStream;
 import org.bytedeco.ffmpeg.global.avutil;
@@ -23,9 +25,8 @@ import org.lwjgl.opengl.GL;
 import org.lwjgl.system.MemoryStack;
 
 import javax.swing.*;
-import java.awt.*;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.io.*;
 import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
@@ -35,6 +36,7 @@ import java.nio.IntBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.Objects;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -119,24 +121,21 @@ public class DynamicWallpaper
 		controlFrame = new ControlFrame(this);
 		controlFrame.setIconImage(icon.getImage());
 
-		SystemTray tray = SystemTray.getSystemTray();
-		TrayIcon trayIcon = new TrayIcon(icon.getImage());
-		trayIcon.addMouseListener(new MouseAdapter()
+		SystemTray.FORCE_TRAY_TYPE = SystemTray.TrayType.AppIndicator;
+		SystemTray systemTray = SystemTray.get();
+		if (systemTray == null) {
+			throw new RuntimeException("Unable to load SystemTray!");
+		}
+		systemTray.installShutdownHook();
+		systemTray.getMenu().add(new MenuItem("Open GUI", new ActionListener()
 		{
 			@Override
-			public void mouseClicked(MouseEvent e)
+			public void actionPerformed(ActionEvent actionEvent)
 			{
-				controlFrame.setVisible(!controlFrame.isVisible());
+				controlFrame.setVisible(true);
 			}
-		});
-		try
-		{
-			tray.add(trayIcon);
-		}
-		catch(AWTException e)
-		{
-			e.printStackTrace();
-		}
+		}));
+		systemTray.setImage(Objects.requireNonNull(getClass().getResource("/icon.png")));
 
 		loadingScreen = new LoadingScreen();
 
@@ -328,7 +327,7 @@ public class DynamicWallpaper
 		glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 
 		glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE); // the window will stay hidden after creation
-		glfwWindowHint(GLFW_DECORATED, GLFW_TRUE);
+		glfwWindowHint(GLFW_DECORATED, GLFW_FALSE);
 
 		GLFWVidMode mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
 		assert mode != null;

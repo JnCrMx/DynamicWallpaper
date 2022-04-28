@@ -1,7 +1,11 @@
 package de.jcm.dynamicwallpaper.colormode;
 
+import com.sun.jna.Platform;
 import com.sun.jna.Pointer;
+import com.sun.jna.platform.unix.X11;
 import com.sun.jna.platform.win32.*;
+import com.sun.jna.ptr.PointerByReference;
+import de.jcm.dynamicwallpaper.Utils;
 import org.joml.Vector3f;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -14,6 +18,11 @@ import javax.swing.table.AbstractTableModel;
 import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableModel;
 import java.awt.*;
+import java.io.File;
+import java.io.FileFilter;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 
 public class ActivityColorMode extends ColorMode
@@ -32,15 +41,42 @@ public class ActivityColorMode extends ColorMode
 		return new Vector3f(currentRed/255f, currentGreen/255f, currentBlue/255f);
 	}
 
-	@Override
-	public void update()
+	private void updateLinux(Set<String> processNames, Set<String> windowTitles)
 	{
-		targetRed = targetGreen = targetBlue = 255;
+		File proc = new File("/proc");
+		FileFilter filter = file -> file.isDirectory() && file.canRead() && new File(file, "exe").exists();
+		for(File f : Objects.requireNonNull(proc.listFiles(filter)))
+		{
+			File exe = new File(f, "exe");
+			try
+			{
+				Path p = Files.readSymbolicLink(exe.toPath());
+				processNames.add(p.toString());
+			}
+			catch(IOException e)
+			{
+				e.printStackTrace();
+			}
+		}
 
+		X11.Display display = X11.INSTANCE.XOpenDisplay(null);
+		int screen = X11.INSTANCE.XDefaultScreen(display);
+		Utils.linuxWalkWindowTree(display, X11.INSTANCE.XRootWindow(display, screen), window->{
+			PointerByReference ptr = new PointerByReference();
+			if(X11.INSTANCE.XFetchName(display, window, ptr) != 0)
+			{
+				windowTitles.add(ptr.getValue().getString(0));
+				X11.INSTANCE.XFree(ptr.getValue());
+			}
+		});
+		X11.INSTANCE.XCloseDisplay(display);
+	}
+
+	private void updateWindows(Set<String> processNames, Set<String> windowTitles)
+	{
 		WinNT.HANDLE handle = Kernel32.INSTANCE.CreateToolhelp32Snapshot(Tlhelp32.TH32CS_SNAPPROCESS, null);
 		Tlhelp32.PROCESSENTRY32 process = new Tlhelp32.PROCESSENTRY32();
 
-		Set<String> processNames = new HashSet<>();
 		if(Kernel32.INSTANCE.Process32First(handle, process))
 		{
 			do
@@ -53,7 +89,6 @@ public class ActivityColorMode extends ColorMode
 		process.clear();
 		Kernel32.INSTANCE.CloseHandle(handle);
 
-		Set<String> windowTitles = new HashSet<>();
 		User32.INSTANCE.EnumWindows(new WinUser.WNDENUMPROC()
 		{
 			@Override
@@ -71,6 +106,21 @@ public class ActivityColorMode extends ColorMode
 				return true;
 			}
 		}, null);
+	}
+
+	@Override
+	public void update()
+	{
+		targetRed = targetGreen = targetBlue = 255;
+
+		Set<String> processNames = new HashSet<>();
+		Set<String> windowTitles = new HashSet<>();
+		if(Platform.isWindows())
+			updateWindows(processNames, windowTitles);
+		else if(Platform.isLinux())
+			updateLinux(processNames, windowTitles);
+		else
+			throw new RuntimeException("unknown platform");
 
 		for(ActivityColorEntry entry : activityColors)
 		{

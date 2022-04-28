@@ -7,6 +7,8 @@ import com.sun.jna.platform.unix.X11;
 import com.sun.jna.platform.win32.User32;
 import com.sun.jna.platform.win32.WinDef;
 import com.sun.jna.platform.win32.WinUser;
+import com.sun.jna.ptr.IntByReference;
+import com.sun.jna.ptr.PointerByReference;
 import org.apache.commons.io.IOUtils;
 import org.lwjgl.glfw.GLFWNativeWin32;
 import org.lwjgl.glfw.GLFWNativeX11;
@@ -17,6 +19,7 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 import static org.lwjgl.system.windows.User32.*;
 
@@ -154,19 +157,23 @@ public class Utils
 
 		Memory memory = new Memory(8);
 
-		/*
-		X11.Window desktop = findByWindowType(display, X11.INSTANCE.XDefaultRootWindow(display),
-		                                      xAtom(display, "_NET_WM_WINDOW_TYPE_DESKTOP"));
-		memory.setNativeLong(0, xAtom(display, "_NET_WM_WINDOW_TYPE_DESKTOP"));
-		X11.INSTANCE.XChangeProperty(display, desktop, xAtom(display, "_NET_WM_WINDOW_TYPE"), X11.XA_ATOM,
-		                             32, X11.PropModeReplace, memory, 1);
-		*/
+		int screen = X11.INSTANCE.XDefaultScreen(display);
+		Xlib.INSTANCE.XReparentWindow(display, thisWindow, X11.INSTANCE.XRootWindow(display, screen),0, 0);
+		Xlib.INSTANCE.XLowerWindow(display, thisWindow);
 
-		memory.setNativeLong(0, xAtom(display, "_NET_WM_WINDOW_TYPE_DESKTOP"));
-		X11.INSTANCE.XChangeProperty(display, thisWindow, xAtom(display, "_NET_WM_WINDOW_TYPE"), X11.XA_ATOM,
-		                             32, X11.PropModeReplace, memory, 1);
+		memory.setByte(0L, (byte) 0);
+		X11.INSTANCE.XChangeProperty(display, thisWindow, xAtom(display, "_WIN_LAYER"), X11.XA_CARDINAL,
+		                             32, X11.PropModeAppend, memory, 1);
 
 		memory.setNativeLong(0, xAtom(display, "_NET_WM_STATE_BELOW"));
+		X11.INSTANCE.XChangeProperty(display, thisWindow, xAtom(display, "_NET_WM_STATE"), X11.XA_ATOM,
+		                             32, X11.PropModeAppend, memory, 1);
+
+		memory.setNativeLong(0, xAtom(display, "_NET_WM_STATE_SKIP_TASKBAR"));
+		X11.INSTANCE.XChangeProperty(display, thisWindow, xAtom(display, "_NET_WM_STATE"), X11.XA_ATOM,
+		                             32, X11.PropModeAppend, memory, 1);
+
+		memory.setNativeLong(0, xAtom(display, "_NET_WM_STATE_SKIP_PAGER"));
 		X11.INSTANCE.XChangeProperty(display, thisWindow, xAtom(display, "_NET_WM_STATE"), X11.XA_ATOM,
 		                             32, X11.PropModeAppend, memory, 1);
 
@@ -174,48 +181,23 @@ public class Utils
 		X11.INSTANCE.XCloseDisplay(display);
 	}
 
-	/*
-	private static X11.Window findByWindowType(X11.Display display, X11.Window window, X11.Atom windowType)
+	public static void linuxWalkWindowTree(X11.Display display, X11.Window window, Consumer<X11.Window> windowConsumer)
 	{
+		windowConsumer.accept(window);
+
 		X11.WindowByReference root = new X11.WindowByReference();
 		X11.WindowByReference parent = new X11.WindowByReference();
 		PointerByReference children = new PointerByReference();
 		IntByReference childrenCount = new IntByReference();
 
 		X11.INSTANCE.XQueryTree(display, window, root, parent, children, childrenCount);
-
 		Pointer pointer = children.getValue();
-
 		for(int i=0; i<childrenCount.getValue(); i++)
 		{
-			X11.Window child = new X11.Window(pointer.getLong(8*i));
-
-			X11.AtomByReference type = new X11.AtomByReference();
-			IntByReference format = new IntByReference();
-			NativeLongByReference itemCount = new NativeLongByReference();
-			NativeLongByReference bytesToRead = new NativeLongByReference();
-			PointerByReference prop = new PointerByReference();
-
-			X11.INSTANCE.XGetWindowProperty(display, child, xAtom(display, "_NET_WM_WINDOW_TYPE"),
-			                                new NativeLong(0), new NativeLong(8), false,
-			                                X11.XA_ATOM, type, format, itemCount, bytesToRead, prop);
-
-			if(itemCount.getValue().longValue() == 1)
-			{
-				X11.Atom atom = new X11.Atom(prop.getValue().getLong(0));
-
-				if(atom.equals(windowType))
-					return child;
-			}
-
-			X11.Window result = findByWindowType(display, child, windowType);
-			if(result != null)
-				return result;
+			X11.Window child = new X11.Window(pointer.getLong(8L * i));
+			linuxWalkWindowTree(display, child, windowConsumer);
 		}
-
-		return null;
 	}
-	*/
 
 	private static X11.Atom xAtom(X11.Display display, String name)
 	{
