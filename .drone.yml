@@ -31,7 +31,7 @@ steps:
     GITEA_USER:
       from_secret: gitea_user
   commands:
-  - "curl --user $${GITEA_USER}:$${GITEA_TOKEN} --upload-file build/libs/DynamicWallpaper-*-all.jar https://git.jcm.re/api/packages/${DRONE_REPO_OWNER}/generic/${DRONE_REPO_NAME}/${DRONE_BRANCH}-${DRONE_BUILD_NUMBER}-${DRONE_COMMIT_SHA:0:8}/DynamicWallpaper-all.jar"
+  - "curl --fail-with-body --user $${GITEA_USER}:$${GITEA_TOKEN} --upload-file build/libs/DynamicWallpaper-*-all.jar https://git.jcm.re/api/packages/${DRONE_REPO_OWNER}/generic/${DRONE_REPO_NAME}/${DRONE_BRANCH}-${DRONE_BUILD_NUMBER}-${DRONE_COMMIT_SHA:0:8}/DynamicWallpaper-all.jar"
   when:
     event:
     - push
